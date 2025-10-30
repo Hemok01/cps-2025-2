@@ -5,7 +5,8 @@ import json
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.contrib.auth import get_user_model
-from .models import LectureSession, SessionParticipant
+from django.utils import timezone
+from .models import LectureSession, SessionParticipant, SessionStepControl
 
 User = get_user_model()
 
@@ -78,6 +79,9 @@ class SessionConsumer(AsyncWebsocketConsumer):
 
     async def disconnect(self, close_code):
         """Handle WebSocket disconnection"""
+        # Update participant status to DISCONNECTED
+        await self.update_participant_on_disconnect()
+
         # Notify others that user left
         await self.channel_layer.group_send(
             self.session_group_name,
@@ -110,7 +114,17 @@ class SessionConsumer(AsyncWebsocketConsumer):
             elif message_type == 'end_session':
                 await self.handle_end_session()
 
-            # Student messages
+            # Student messages (Android app compatible)
+            elif message_type == 'join':
+                await self.handle_join(data)
+            elif message_type == 'heartbeat':
+                await self.handle_heartbeat(data)
+            elif message_type == 'step_complete':
+                await self.handle_step_complete(data)
+            elif message_type == 'request_help':
+                await self.handle_help_request(data)
+
+            # Legacy student messages (backward compatibility)
             elif message_type == 'progress_update':
                 await self.handle_progress_update(data)
             elif message_type == 'help_request':
@@ -154,6 +168,13 @@ class SessionConsumer(AsyncWebsocketConsumer):
             }))
             return
 
+        # Log step control action
+        await self.log_step_control(
+            action='START_STEP',
+            subtask_id=subtask_id,
+            message=data.get('message', '다음 단계로 이동')
+        )
+
         # Get subtask details
         subtask = await self.get_subtask_details(subtask_id)
 
@@ -176,6 +197,12 @@ class SessionConsumer(AsyncWebsocketConsumer):
 
         await self.update_session_status('PAUSED')
 
+        # Log pause action
+        await self.log_step_control(
+            action='PAUSE',
+            message='세션이 일시정지되었습니다'
+        )
+
         await self.channel_layer.group_send(
             self.session_group_name,
             {
@@ -194,6 +221,12 @@ class SessionConsumer(AsyncWebsocketConsumer):
             return
 
         await self.update_session_status('IN_PROGRESS')
+
+        # Log resume action
+        await self.log_step_control(
+            action='RESUME',
+            message='세션이 재개되었습니다'
+        )
 
         await self.channel_layer.group_send(
             self.session_group_name,
@@ -214,6 +247,12 @@ class SessionConsumer(AsyncWebsocketConsumer):
 
         await self.update_session_status('ENDED')
 
+        # Log end session action
+        await self.log_step_control(
+            action='END_STEP',
+            message='세션이 종료되었습니다'
+        )
+
         await self.channel_layer.group_send(
             self.session_group_name,
             {
@@ -224,10 +263,71 @@ class SessionConsumer(AsyncWebsocketConsumer):
         )
 
     # Student message handlers
-    async def handle_progress_update(self, data):
-        """Handle student progress update"""
+    async def handle_join(self, data):
+        """Handle explicit join message from student"""
+        # Update participant status to ACTIVE
+        await self.update_participant_status('ACTIVE')
+
+        # Send confirmation
+        await self.send(text_data=json.dumps({
+            'type': 'join_confirmed',
+            'session_code': self.session_code,
+            'user_id': self.user.id,
+            'message': '세션에 참가했습니다'
+        }))
+
+    async def handle_heartbeat(self, data):
+        """Handle heartbeat message to keep connection alive"""
+        # Update last_active_at timestamp
+        await self.update_participant_last_active()
+
+        # Send heartbeat response (optional)
+        await self.send(text_data=json.dumps({
+            'type': 'heartbeat_ack',
+            'timestamp': data.get('timestamp')
+        }))
+
+    async def handle_step_complete(self, data):
+        """Handle student completing a step"""
         subtask_id = data.get('subtask_id')
-        status = data.get('status')
+
+        if not subtask_id:
+            await self.send(text_data=json.dumps({
+                'error': 'subtask_id is required'
+            }))
+            return
+
+        # Update participant's current subtask
+        await self.update_participant_subtask(subtask_id)
+
+        # Send progress update to instructor(s) only
+        await self.channel_layer.group_send(
+            self.session_group_name,
+            {
+                'type': 'progress_updated',
+                'user_id': self.user.id,
+                'user_name': self.user.name,
+                'subtask_id': subtask_id,
+                'status': 'completed',
+                'role_filter': 'INSTRUCTOR'  # Only send to instructors
+            }
+        )
+
+        # Send confirmation to student
+        await self.send(text_data=json.dumps({
+            'type': 'step_complete_confirmed',
+            'subtask_id': subtask_id,
+            'message': '단계를 완료했습니다'
+        }))
+
+    async def handle_progress_update(self, data):
+        """Handle student progress update (legacy)"""
+        subtask_id = data.get('subtask_id')
+        status = data.get('status', 'in_progress')
+
+        # Update participant's current subtask if provided
+        if subtask_id:
+            await self.update_participant_subtask(subtask_id)
 
         # Send progress update to instructor(s) only
         await self.channel_layer.group_send(
@@ -383,10 +483,106 @@ class SessionConsumer(AsyncWebsocketConsumer):
             return {
                 'id': subtask.id,
                 'title': subtask.title,
-                'order': subtask.order,
+                'order_index': subtask.order_index,
                 'target_action': subtask.target_action,
                 'guide_text': subtask.guide_text,
                 'voice_guide_text': subtask.voice_guide_text
             }
         except Subtask.DoesNotExist:
             return None
+
+    # SessionParticipant update methods
+    @database_sync_to_async
+    def update_participant_status(self, status):
+        """Update participant status"""
+        try:
+            session = LectureSession.objects.get(session_code=self.session_code)
+            participant, created = SessionParticipant.objects.get_or_create(
+                session=session,
+                user=self.user,
+                defaults={'status': status}
+            )
+            if not created:
+                participant.status = status
+                participant.last_active_at = timezone.now()
+                participant.save()
+            return True
+        except Exception:
+            return False
+
+    @database_sync_to_async
+    def update_participant_last_active(self):
+        """Update participant last_active_at timestamp"""
+        try:
+            session = LectureSession.objects.get(session_code=self.session_code)
+            SessionParticipant.objects.filter(
+                session=session,
+                user=self.user
+            ).update(last_active_at=timezone.now())
+            return True
+        except Exception:
+            return False
+
+    @database_sync_to_async
+    def update_participant_subtask(self, subtask_id):
+        """Update participant current subtask"""
+        try:
+            from apps.tasks.models import Subtask
+            session = LectureSession.objects.get(session_code=self.session_code)
+            subtask = Subtask.objects.get(id=subtask_id)
+
+            participant = SessionParticipant.objects.get(
+                session=session,
+                user=self.user
+            )
+            participant.current_subtask = subtask
+            participant.last_active_at = timezone.now()
+            participant.save()
+            return True
+        except Exception:
+            return False
+
+    @database_sync_to_async
+    def update_participant_on_disconnect(self):
+        """Update participant status on disconnect"""
+        try:
+            session = LectureSession.objects.get(session_code=self.session_code)
+            SessionParticipant.objects.filter(
+                session=session,
+                user=self.user
+            ).update(
+                status='DISCONNECTED',
+                last_active_at=timezone.now()
+            )
+            return True
+        except Exception:
+            return False
+
+    # SessionStepControl logging methods
+    @database_sync_to_async
+    def log_step_control(self, action, subtask_id=None, message=''):
+        """Log instructor step control action to SessionStepControl"""
+        try:
+            from apps.tasks.models import Subtask
+            session = LectureSession.objects.get(session_code=self.session_code)
+
+            # Get subtask if provided
+            subtask = None
+            if subtask_id:
+                try:
+                    subtask = Subtask.objects.get(id=subtask_id)
+                except Subtask.DoesNotExist:
+                    pass
+
+            # Create step control record
+            SessionStepControl.objects.create(
+                session=session,
+                subtask=subtask,
+                instructor=self.user,
+                action=action,
+                message=message
+            )
+            return True
+        except Exception as e:
+            print(f"Error logging step control: {e}")
+            return False
