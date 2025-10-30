@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'apps.logs',
     'apps.help',
     'apps.dashboard',
+    'apps.students',
 ]
 
 MIDDLEWARE = [

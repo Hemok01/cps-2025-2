@@ -23,6 +23,7 @@ urlpatterns = [
     path('api/logs/', include('apps.logs.urls')),
     path('api/help/', include('apps.help.urls')),
     path('api/dashboard/', include('apps.dashboard.urls')),
+    path('api/students/', include('apps.students.urls')),
 
     # JWT Token endpoints
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MobileGPT 학습</string>
+
+    <!-- Accessibility Service -->
+    <string name="accessibility_service_label">MobileGPT 학습 도우미</string>
+    <string name="accessibility_service_description">앱 사용 과정을 기록하고 도움을 제공합니다.</string>
+
+    <!-- Common -->
+    <string name="ok">확인</string>
+    <string name="cancel">취소</string>
+    <string name="loading">로딩 중...</string>
+    <string name="error">오류가 발생했습니다</string>
+
+    <!-- Auth -->
+    <string name="login">로그인</string>
+    <string name="logout">로그아웃</string>
+    <string name="email">이메일</string>
+    <string name="password">비밀번호</string>
+
+    <!-- Session -->
+    <string name="session_code">세션 코드</string>
+    <string name="join_session">세션 참가</string>
+    <string name="my_sessions">내 세션</string>
+    <string name="active_sessions">진행 중인 세션</string>
+</resources>
