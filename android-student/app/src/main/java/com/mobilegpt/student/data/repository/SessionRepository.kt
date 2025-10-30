@@ -1,9 +1,12 @@
 package com.mobilegpt.student.data.repository
 
+import com.mobilegpt.student.data.api.ActivityLogRequest
+import com.mobilegpt.student.data.api.ActivityLogResponse
 import com.mobilegpt.student.data.api.JoinSessionRequest
 import com.mobilegpt.student.data.api.JoinSessionResponse
 import com.mobilegpt.student.data.api.StudentApi
 import com.mobilegpt.student.data.api.WebSocketApi
+import com.mobilegpt.student.domain.model.ActivityLog
 import com.mobilegpt.student.domain.model.ClientMessage
 import com.mobilegpt.student.domain.model.MessageType
 import com.mobilegpt.student.domain.model.SessionData
@@ -137,5 +140,47 @@ class SessionRepository @Inject constructor(
                 data = message?.let { mapOf("message" to it) }
             )
         )
+    }
+
+    /**
+     * Activity Log 전송
+     */
+    suspend fun sendActivityLog(log: ActivityLog): Result<ActivityLogResponse> {
+        return try {
+            // ActivityLog를 백엔드 API 형식으로 변환
+            val request = ActivityLogRequest(
+                session = log.sessionId,
+                subtask = log.subtaskId,
+                event_type = log.eventType,
+                event_data = buildMap {
+                    put("package_name", log.packageName)
+                    log.activityName?.let { put("activity_name", it) }
+                    log.elementText?.let { put("element_text", it) }
+                    log.elementType?.let { put("element_type", it) }
+                    log.metadata?.let { putAll(it) }
+                },
+                screen_info = buildMap {
+                    log.screenTitle?.let { put("title", it) }
+                    log.activityName?.let { put("activity_name", it) }
+                },
+                node_info = buildMap {
+                    log.elementId?.let { put("element_id", it) }
+                    log.elementText?.let { put("text", it) }
+                    log.elementType?.let { put("type", it) }
+                },
+                view_id_resource_name = log.elementId,
+                content_description = log.elementText,
+                is_sensitive_data = false
+            )
+
+            val response = studentApi.sendActivityLog(request)
+            if (response.isSuccessful && response.body() != null) {
+                Result.success(response.body()!!)
+            } else {
+                Result.failure(Exception("Failed to send activity log: ${response.code()}"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 }

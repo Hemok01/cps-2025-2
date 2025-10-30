@@ -1,17 +1,33 @@
 package com.mobilegpt.student.service
 
 import android.accessibilityservice.AccessibilityService
+import android.content.Context
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import com.mobilegpt.student.data.local.SessionPreferences
+import com.mobilegpt.student.data.repository.SessionRepository
 import com.mobilegpt.student.domain.model.ActivityLog
 import com.mobilegpt.student.domain.model.EventType
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
+
+/**
+ * Hilt EntryPoint for AccessibilityService
+ */
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+interface AccessibilityServiceEntryPoint {
+    fun sessionRepository(): SessionRepository
+}
 
 /**
  * MobileGPT Accessibility Service
@@ -22,6 +38,9 @@ class MobileGPTAccessibilityService : AccessibilityService() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.getDefault())
 
+    private lateinit var sessionRepository: SessionRepository
+    private lateinit var sessionPreferences: SessionPreferences
+
     companion object {
         private const val TAG = "MobileGPT_A11y"
         var isRunning = false
@@ -31,6 +50,17 @@ class MobileGPTAccessibilityService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         isRunning = true
+
+        // Hilt EntryPoint를 통해 Repository 가져오기
+        val entryPoint = EntryPointAccessors.fromApplication(
+            applicationContext,
+            AccessibilityServiceEntryPoint::class.java
+        )
+        sessionRepository = entryPoint.sessionRepository()
+
+        // SessionPreferences 초기화
+        sessionPreferences = SessionPreferences(applicationContext)
+
         Log.d(TAG, "Accessibility Service Connected")
     }
 
@@ -90,9 +120,18 @@ class MobileGPTAccessibilityService : AccessibilityService() {
 
         sourceNode?.recycle()
 
+        // SharedPreferences에서 세션 ID와 서브태스크 ID 가져오기
+        val sessionId = if (::sessionPreferences.isInitialized) {
+            sessionPreferences.getSessionId()
+        } else null
+
+        val subtaskId = if (::sessionPreferences.isInitialized) {
+            sessionPreferences.getSubtaskId()
+        } else null
+
         return ActivityLog(
-            sessionId = null, // TODO: 현재 세션 ID 가져오기
-            subtaskId = null, // TODO: 현재 단계 ID 가져오기
+            sessionId = sessionId,
+            subtaskId = subtaskId,
             eventType = eventType,
             packageName = packageName,
             activityName = className,
@@ -158,13 +197,20 @@ class MobileGPTAccessibilityService : AccessibilityService() {
      */
     private suspend fun sendLogToServer(log: ActivityLog) {
         try {
-            // TODO: Repository를 통한 API 호출
-            Log.d(TAG, "Log collected: ${log.eventType} - ${log.packageName}")
+            // Repository를 통한 API 호출
+            if (!::sessionRepository.isInitialized) {
+                Log.w(TAG, "Repository not initialized yet")
+                return
+            }
 
-            // 임시: 로그 출력
-            Log.d(TAG, "Event: ${log.eventType}")
-            Log.d(TAG, "Package: ${log.packageName}")
-            Log.d(TAG, "Element: ${log.elementText}")
+            val result = sessionRepository.sendActivityLog(log)
+
+            result.onSuccess { response ->
+                Log.d(TAG, "Log sent successfully: ${response.log_id}")
+                Log.d(TAG, "Event: ${log.eventType}, Package: ${log.packageName}, Element: ${log.elementText}")
+            }.onFailure { error ->
+                Log.e(TAG, "Failed to send log: ${error.message}")
+            }
 
         } catch (e: Exception) {
             Log.e(TAG, "Failed to send log", e)

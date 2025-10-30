@@ -36,6 +36,14 @@ interface StudentApi {
     suspend fun leaveSession(
         @Path("id") sessionId: Int
     ): Response<Unit>
+
+    /**
+     * Activity Log 전송
+     */
+    @POST("logs/activity/")
+    suspend fun sendActivityLog(
+        @Body request: ActivityLogRequest
+    ): Response<ActivityLogResponse>
 }
 
 /**
@@ -55,4 +63,29 @@ data class ParticipantData(
     val id: Int,
     val status: String,
     val joined_at: String
+)
+
+/**
+ * Activity Log Request
+ * 백엔드 API 형식에 맞춘 요청 모델
+ */
+data class ActivityLogRequest(
+    val session: Int?,
+    val subtask: Int?,
+    val event_type: String,
+    val event_data: Map<String, Any>? = null,
+    val screen_info: Map<String, Any>? = null,
+    val node_info: Map<String, Any>? = null,
+    val parent_node_info: Map<String, Any>? = null,
+    val view_id_resource_name: String? = null,
+    val content_description: String? = null,
+    val is_sensitive_data: Boolean = false
+)
+
+/**
+ * Activity Log Response
+ */
+data class ActivityLogResponse(
+    val log_id: Int,
+    val message: String
 )

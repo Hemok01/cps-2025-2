@@ -1,6 +1,7 @@
 package com.mobilegpt.student.presentation
 
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
@@ -8,8 +9,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mobilegpt.student.data.local.SessionPreferences
 import dagger.hilt.android.AndroidEntryPoint
 
 /**
@@ -35,6 +38,9 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun MainScreen() {
+    val context = LocalContext.current
+    val sessionPreferences = remember { SessionPreferences(context) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -59,13 +65,22 @@ fun MainScreen() {
         Spacer(modifier = Modifier.height(48.dp))
 
         Button(
-            onClick = { /* TODO: Navigate to session join */ },
+            onClick = {
+                // MVP: 테스트용 세션 ID 설정 (백엔드에서 생성한 TEST001 세션)
+                // 실제로는 세션 참가 API를 호출하여 얻은 세션 ID를 사용
+                sessionPreferences.setSessionId(1) // TEST001 세션의 ID를 1로 가정
+                Toast.makeText(
+                    context,
+                    "테스트 세션에 참가했습니다 (Session ID: 1)",
+                    Toast.LENGTH_SHORT
+                ).show()
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(64.dp)
         ) {
             Text(
-                text = "세션 참가",
+                text = "세션 참가 (테스트)",
                 fontSize = 24.sp
             )
         }

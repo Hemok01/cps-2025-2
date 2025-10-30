@@ -30,6 +30,7 @@ INSTALLED_APPS = [
     'channels',
 
     # Local apps
+    'core',
     'apps.accounts',
     'apps.lectures',
     'apps.sessions',
