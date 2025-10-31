@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">MobileGPT 학습</string>
+    <string name="app_name">MobEdu</string>
 
     <!-- Accessibility Service -->
-    <string name="accessibility_service_label">MobileGPT 학습 도우미</string>
+    <string name="accessibility_service_label">MobEdu 학습 도우미</string>
     <string name="accessibility_service_description">앱 사용 과정을 기록하고 도움을 제공합니다.</string>
 
     <!-- Common -->

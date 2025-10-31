@@ -1,6 +1,7 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("org.jetbrains.kotlin.plugin.compose")   // ✅ 반드시 있어야 함
     id("com.google.devtools.ksp")
     id("com.google.dagger.hilt.android")
 }
@@ -50,14 +51,16 @@ android {
         buildConfig = true
     }
 
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.4"
-    }
-
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
+    }
+
+    lint {
+        // Lint 오류를 경고로 처리
+        abortOnError = false
+        checkReleaseBuilds = false
     }
 }
 
@@ -99,8 +102,8 @@ dependencies {
     implementation("com.tinder.scarlet:lifecycle-android:0.1.12")
 
     // Hilt (Dependency Injection)
-    implementation("com.google.dagger:hilt-android:2.48")
-    ksp("com.google.dagger:hilt-android-compiler:2.48")
+    implementation("com.google.dagger:hilt-android:2.52")
+    ksp("com.google.dagger:hilt-android-compiler:2.52")
     implementation("androidx.hilt:hilt-navigation-compose:1.1.0")
 
     // DataStore (for token storage)

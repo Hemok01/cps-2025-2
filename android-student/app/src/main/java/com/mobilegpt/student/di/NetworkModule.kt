@@ -3,8 +3,10 @@ package com.mobilegpt.student.di
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.mobilegpt.student.BuildConfig
+import com.mobilegpt.student.data.api.AuthApi
 import com.mobilegpt.student.data.api.StudentApi
 import com.mobilegpt.student.data.api.WebSocketApi
+import com.mobilegpt.student.data.local.TokenPreferences
 import com.tinder.scarlet.Scarlet
 import com.tinder.scarlet.messageadapter.gson.GsonMessageAdapter
 import com.tinder.scarlet.retry.LinearBackoffStrategy
@@ -13,6 +15,7 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -20,7 +23,6 @@ import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 import javax.inject.Qualifier
 import javax.inject.Singleton
-
 /**
  * Network Module for Hilt DI
  * REST API 및 WebSocket 제공
@@ -37,9 +39,33 @@ object NetworkModule {
             .create()
     }
 
+    /**
+     * 인증 인터셉터
+     */
     @Provides
     @Singleton
-    fun provideOkHttpClient(): OkHttpClient {
+    fun provideAuthInterceptor(tokenPreferences: TokenPreferences): Interceptor {
+        return Interceptor { chain ->
+            val request = chain.request()
+            val token = tokenPreferences.getAccessToken()
+
+            val newRequest = if (token != null) {
+                request.newBuilder()
+                    .addHeader("Authorization", "Bearer $token")
+                    .build()
+            } else {
+                request
+            }
+
+            chain.proceed(newRequest)
+        }
+    }
+
+    @Provides
+    @Singleton
+    fun provideOkHttpClient(
+        authInterceptor: Interceptor
+    ): OkHttpClient {
         val logging = HttpLoggingInterceptor().apply {
             level = if (BuildConfig.DEBUG) {
                 HttpLoggingInterceptor.Level.BODY
@@ -49,6 +75,7 @@ object NetworkModule {
         }
 
         return OkHttpClient.Builder()
+            .addInterceptor(authInterceptor)
             .addInterceptor(logging)
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
@@ -71,6 +98,12 @@ object NetworkModule {
 
     @Provides
     @Singleton
+    fun provideAuthApi(retrofit: Retrofit): AuthApi {
+        return retrofit.create(AuthApi::class.java)
+    }
+
+    @Provides
+    @Singleton
     fun provideStudentApi(retrofit: Retrofit): StudentApi {
         return retrofit.create(StudentApi::class.java)
     }
@@ -88,9 +121,9 @@ object NetworkModule {
         val scarlet = Scarlet.Builder()
             .webSocketFactory(okHttpClient.newWebSocketFactory("$baseWsUrl/session/test/"))
             .addMessageAdapterFactory(GsonMessageAdapter.Factory(gson))
+            //.addStreamAdapterFactory(CoroutinesStreamAdapterFactory())  // 이 줄
             .backoffStrategy(LinearBackoffStrategy(5000))
             .build()
-
         return scarlet.create(WebSocketApi::class.java)
     }
 }

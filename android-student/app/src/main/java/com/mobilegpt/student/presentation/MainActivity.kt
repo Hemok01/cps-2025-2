@@ -1,19 +1,19 @@
 package com.mobilegpt.student.presentation
 
 import android.os.Bundle
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.mobilegpt.student.data.local.SessionPreferences
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.compose.rememberNavController
+import com.mobilegpt.student.data.local.TokenPreferences
+import com.mobilegpt.student.presentation.navigation.NavGraph
+import com.mobilegpt.student.presentation.navigation.Routes
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
 /**
  * Main Activity
@@ -21,6 +21,10 @@ import dagger.hilt.android.AndroidEntryPoint
  */
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    @Inject
+    lateinit var tokenPreferences: TokenPreferences
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -29,7 +33,13 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    MainScreen()
+                    MobileGPTApp(
+                        startDestination = if (tokenPreferences.isLoggedIn()) {
+                            Routes.SESSION_CODE
+                        } else {
+                            Routes.LOGIN
+                        }
+                    )
                 }
             }
         }
@@ -37,54 +47,15 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun MainScreen() {
-    val context = LocalContext.current
-    val sessionPreferences = remember { SessionPreferences(context) }
+fun MobileGPTApp(
+    startDestination: String
+) {
+    val navController = rememberNavController()
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Text(
-            text = "MobileGPT 학습",
-            fontSize = 32.sp,
-            style = MaterialTheme.typography.headlineLarge
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Text(
-            text = "시니어를 위한 디지털 교육 도우미",
-            fontSize = 20.sp,
-            style = MaterialTheme.typography.bodyLarge
-        )
-
-        Spacer(modifier = Modifier.height(48.dp))
-
-        Button(
-            onClick = {
-                // MVP: 테스트용 세션 ID 설정 (백엔드에서 생성한 TEST001 세션)
-                // 실제로는 세션 참가 API를 호출하여 얻은 세션 ID를 사용
-                sessionPreferences.setSessionId(1) // TEST001 세션의 ID를 1로 가정
-                Toast.makeText(
-                    context,
-                    "테스트 세션에 참가했습니다 (Session ID: 1)",
-                    Toast.LENGTH_SHORT
-                ).show()
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(64.dp)
-        ) {
-            Text(
-                text = "세션 참가 (테스트)",
-                fontSize = 24.sp
-            )
-        }
-    }
+    NavGraph(
+        navController = navController,
+        startDestination = startDestination
+    )
 }
 
 @Composable
@@ -93,7 +64,9 @@ fun MobileGPTTheme(content: @Composable () -> Unit) {
         colorScheme = lightColorScheme(
             primary = androidx.compose.ui.graphics.Color(0xFF2196F3),
             onPrimary = androidx.compose.ui.graphics.Color.White,
-            background = androidx.compose.ui.graphics.Color(0xFFFAFAFA)
+            background = androidx.compose.ui.graphics.Color(0xFFFAFAFA),
+            primaryContainer = androidx.compose.ui.graphics.Color(0xFFBBDEFB),
+            onPrimaryContainer = androidx.compose.ui.graphics.Color(0xFF0D47A1)
         ),
         content = content
     )

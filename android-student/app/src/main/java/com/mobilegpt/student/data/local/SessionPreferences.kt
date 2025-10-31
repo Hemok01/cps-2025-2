@@ -2,12 +2,18 @@ package com.mobilegpt.student.data.local
 
 import android.content.Context
 import android.content.SharedPreferences
+import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Inject
+import javax.inject.Singleton
 
 /**
  * Session Preferences Helper
  * 세션 정보를 SharedPreferences에 저장/조회
  */
-class SessionPreferences(context: Context) {
+@Singleton
+class SessionPreferences @Inject constructor(
+    @ApplicationContext context: Context
+) {
 
     private val prefs: SharedPreferences = context.getSharedPreferences(
         PREFS_NAME,

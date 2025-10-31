@@ -13,6 +13,7 @@ import com.mobilegpt.student.domain.model.SessionData
 import com.mobilegpt.student.domain.model.SessionMessage
 import com.tinder.scarlet.WebSocket
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.receiveAsFlow
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -96,14 +97,14 @@ class SessionRepository @Inject constructor(
      * WebSocket 연결 상태 관찰
      */
     fun observeWebSocketEvents(): Flow<WebSocket.Event> {
-        return webSocketApi.observeWebSocketEvent()
+        return webSocketApi.observeWebSocketEvent().receiveAsFlow()
     }
 
     /**
      * 서버 메시지 수신
      */
     fun observeSessionMessages(): Flow<SessionMessage> {
-        return webSocketApi.observeMessages()
+        return webSocketApi.observeMessages().receiveAsFlow()
     }
 
     /**

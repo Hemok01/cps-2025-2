@@ -5,7 +5,7 @@ import com.mobilegpt.student.domain.model.SessionMessage
 import com.tinder.scarlet.WebSocket
 import com.tinder.scarlet.ws.Receive
 import com.tinder.scarlet.ws.Send
-import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.channels.ReceiveChannel
 
 /**
  * WebSocket API Interface
@@ -17,13 +17,13 @@ interface WebSocketApi {
      * WebSocket 연결 상태 관찰
      */
     @Receive
-    fun observeWebSocketEvent(): Flow<WebSocket.Event>
+    fun observeWebSocketEvent(): ReceiveChannel<WebSocket.Event>
 
     /**
      * 서버로부터 메시지 수신
      */
     @Receive
-    fun observeMessages(): Flow<SessionMessage>
+    fun observeMessages(): ReceiveChannel<SessionMessage>
 
     /**
      * 서버로 메시지 전송
