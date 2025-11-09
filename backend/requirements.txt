@@ -17,6 +17,7 @@ channels-redis==4.1.0
 
 # Kafka
 confluent-kafka==2.3.0
+kafka-python==2.0.2
 
 # Redis
 redis==5.0.1

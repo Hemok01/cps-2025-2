@@ -75,23 +75,23 @@ WSGI_APPLICATION = 'config.wsgi.application'
 ASGI_APPLICATION = 'config.asgi.application'
 
 # Database
-# For quick local development, using SQLite. Switch to PostgreSQL for production.
+# Use PostgreSQL for production deployment
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': config('DB_NAME', default='mobilegpt_db'),
+        'USER': config('DB_USER', default='postgres'),
+        'PASSWORD': config('DB_PASSWORD', default='postgres'),
+        'HOST': config('DB_HOST', default='db'),  # 'db' for Docker, 'localhost' for local
+        'PORT': config('DB_PORT', default='5432'),
     }
 }
 
-# Uncomment below for PostgreSQL
+# For local development with SQLite (uncomment if needed):
 # DATABASES = {
 #     'default': {
-#         'ENGINE': 'django.db.backends.postgresql',
-#         'NAME': config('DB_NAME', default='mobilegpt_db'),
-#         'USER': config('DB_USER', default='postgres'),
-#         'PASSWORD': config('DB_PASSWORD', default='postgres'),
-#         'HOST': config('DB_HOST', default='localhost'),
-#         'PORT': config('DB_PORT', default='5432'),
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': BASE_DIR / 'db.sqlite3',
 #     }
 # }
 
@@ -217,10 +217,6 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
-
-# OpenAI API (M-GPT)
-OPENAI_API_KEY = config('OPENAI_API_KEY', default='')
-OPENAI_MODEL = config('OPENAI_MODEL', default='gpt-4')
 
 # Session Configuration
 SESSION_CODE_LENGTH = 6
