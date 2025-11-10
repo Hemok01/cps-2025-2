@@ -14,6 +14,9 @@ urlpatterns = [
     # Admin
     path('admin/', admin.site.urls),
 
+    # Health Check (no authentication required)
+    path('api/health/', include('apps.health.urls')),
+
     # API v1
     path('api/auth/', include('apps.accounts.urls')),
     path('api/lectures/', include('apps.lectures.urls')),

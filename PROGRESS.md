@@ -1,7 +1,7 @@
 # MobEdu 배포 준비 진행 상황
 
 **마지막 업데이트**: 2025-11-10
-**진행률**: 40% (4/10 단계)
+**진행률**: 70% (9/13 단계)
 
 ---
 
@@ -69,44 +69,115 @@ python manage.py run_kafka_consumer
 
 ---
 
-## ⏳ 남은 작업 (6단계)
+### 6. Kafka Producer 구현
+**파일**: `/Users/heemok/cps 2025-2/backend/apps/logs/kafka_producer.py` (NEW)
 
-### 6. AI 분석 서비스 재설계 (선택사항, 1-2시간)
-- [ ] MobileGPT 원본 구조 분석 완료
-- [ ] AI 분석 기능 재설계 필요 여부 결정
-- [ ] 또는 HelpRequest 수동 생성 방식 유지
+기능:
+- ✅ Singleton ActivityLogProducer 클래스
+- ✅ 비동기 메시지 전송 (async with callbacks)
+- ✅ 배치 전송 지원 (send_logs_batch)
+- ✅ Kafka 실패 시 자동 DB fallback
+- ✅ JSON 직렬화 처리 (ForeignKey → ID 변환)
 
-### 7. Nginx 설정 및 프론트엔드 빌드 (30분)
+**통합 변경사항**:
+- `apps/logs/views.py`: Kafka Producer 통합, _prepare_kafka_data() 추가
+- `apps/logs/management/commands/run_kafka_consumer.py`: 누락 필드 추가
+
+**테스트 결과**:
+- ✅ 단일 로그 전송 성공 (202 ACCEPTED)
+- ✅ 배치 로그 전송 성공
+- ✅ ForeignKey 직렬화 문제 해결
+
+**상세 보고서**: `KAFKA_INTEGRATION_REPORT.md`
+
+---
+
+### 7. Health Check 시스템 구현
+**파일**: `/Users/heemok/cps 2025-2/backend/apps/health/` (NEW)
+
+기능:
+- ✅ `/api/health/` - 기본 health check (인증 불필요)
+- ✅ `/api/health/detailed/` - DB/Cache 연결 상태 확인
+- ✅ Docker healthcheck 통합 (backend, daphne)
+
+**변경사항**:
+- `Dockerfile`: curl 설치 추가
+- `docker-compose.yml`: healthcheck URL 수정 (/admin/ → /api/health/)
+- `config/urls.py`: health check URL 라우팅 추가
+
+**결과**: 모든 컨테이너 healthy 상태 확인 ✅
+
+---
+
+### 8. Celery 설정 완료
+**파일**: `/Users/heemok/cps 2025-2/backend/config/celery.py` (NEW)
+
+기능:
+- ✅ Celery app 초기화 및 설정
+- ✅ Redis 브로커 연결
+- ✅ Django settings 자동 로드
+- ✅ Task 자동 발견 (autodiscover_tasks)
+
+**변경사항**:
+- `config/__init__.py`: celery_app import 추가
+
+**결과**: Celery Worker & Beat 정상 실행 ✅
+
+---
+
+### 9. Docker Compose 전체 테스트 완료
+**파일**: `/Users/heemok/cps 2025-2/backend/docker-compose.yml`
+
+**테스트 결과**:
+- ✅ 9개 서비스 모두 정상 실행
+- ✅ PostgreSQL (healthy)
+- ✅ Redis (healthy)
+- ✅ Zookeeper (running)
+- ✅ Kafka (healthy)
+- ✅ Django Backend (healthy)
+- ✅ Daphne ASGI (healthy)
+- ✅ Celery Worker (running)
+- ✅ Celery Beat (running)
+- ✅ Kafka Consumer (running)
+
+**주요 수정사항**:
+- Kafka ADVERTISED_LISTENERS 수정 (내부 통신용)
+- Kafka Consumer healthcheck 조건 추가
+- Health check URL 변경
+
+**상세 보고서**: `DOCKER_COMPOSE_TEST_REPORT.md`
+
+---
+
+## ⏳ 남은 작업 (4단계)
+
+### 10. Nginx 설정 및 프론트엔드 빌드 (선택사항, 30분)
 - [ ] 프론트엔드 프로덕션 빌드
 - [ ] Nginx Dockerfile 작성
 - [ ] nginx.conf 설정 (정적 파일 + API 프록시 + WebSocket)
 - [ ] docker-compose.yml에 Nginx 추가
 
-### 8. 백엔드 테스트 작성 (1시간)
+**참고**: 현재 Backend(8000) + Daphne(8001) 직접 접근 가능. Nginx는 프로덕션 배포 시 추가 권장.
+
+### 11. 백엔드 테스트 작성 (1시간)
 - [ ] `tests/test_auth.py` - 인증 API
 - [ ] `tests/test_sessions.py` - 세션 관리
 - [ ] `tests/test_help.py` - 도움 요청
+- [ ] `tests/test_kafka_producer.py` - Kafka Producer
 - [ ] `tests/test_kafka_consumer.py` - Kafka Consumer
 - [ ] pytest 실행 및 커버리지 확인
 
-### 9. Docker Compose 테스트 (30분)
-- [ ] 로컬에서 `docker-compose up --build` 실행
-- [ ] 모든 서비스 헬스체크 확인
-- [ ] DB 마이그레이션 실행
-- [ ] 슈퍼유저 생성
-- [ ] API 엔드포인트 테스트
-
-### 10. AWS EC2 배포 (1.5시간)
+### 12. AWS EC2 배포 (1.5시간)
 - [ ] EC2 인스턴스 생성 (t3.small/medium)
 - [ ] 보안 그룹 설정 (SSH, HTTP, HTTPS)
 - [ ] Docker 설치
-- [ ] 코드 배포
+- [ ] 코드 배포 (git clone)
 - [ ] .env.production 설정
 - [ ] docker-compose up -d
 - [ ] 도메인 연결 (선택)
 - [ ] HTTPS 설정 (선택)
 
-### 11. 배포 문서 작성 (30분)
+### 13. 배포 문서 작성 (30분)
 - [ ] DEPLOYMENT.md - 배포 가이드
 - [ ] USER_GUIDE.md - 사용자 매뉴얼
 - [ ] API 문서 (Swagger/Postman)
@@ -163,21 +234,32 @@ docker-compose up --build
 
 ```
 [Android 학생 앱]
-     ↓ Activity Logs via API
-[Django Backend (Gunicorn)]
-     ↓ Kafka Producer
-[Kafka Topic: activity-logs]
+     ↓ POST /api/logs/activity/
+[Django Backend API (Gunicorn:8000)]
+     ↓ ActivityLogCreateView
+     ↓ _prepare_kafka_data() (ForeignKey → ID)
      ↓
-[Kafka Consumer]
-     ↓ Save to DB
-[ActivityLog 모델]
+[ActivityLogProducer (Singleton)]
+     ↓ send_log() / send_logs_batch()
+     ↓ async with callbacks
+     ↓
+[Kafka Broker (kafka:9092)]
+     ↓ Topic: activity-logs
+     ↓ Partition: 1 (round-robin)
+     ↓
+[Kafka Consumer (Management Command)]
+     ↓ poll messages
+     ↓ process_log()
+     ↓
+[PostgreSQL Database]
+     ↓ ActivityLog 모델 저장
      ↓
 [강사 대시보드 (React)]
-     ↑↓ WebSocket (Daphne)
+     ↑↓ WebSocket (Daphne:8001)
 [실시간 업데이트]
 
+Fallback: Kafka 실패 시 → 직접 DB 저장 (202 → 201)
 참고: AI 분석 기능은 현재 비활성화
-HelpRequest는 수동 생성 방식
 ```
 
 ---
@@ -237,10 +319,16 @@ docker-compose logs -f kafka_consumer
 
 ## 예상 일정
 
-- **이미 완료**: 1.5시간 (40%)
-- **남은 작업**: 4-5시간 (60%)
-- **총 예상**: 5.5-6.5시간
-- **버퍼**: +1-2시간 (문제 해결)
+- **이미 완료**: 4-5시간 (70%)
+- **남은 작업**: 2-3시간 (30%)
+  - 백엔드 테스트: 1시간
+  - AWS EC2 배포: 1.5시간
+  - 문서 작성: 30분
+  - Nginx 설정: 선택사항
+- **총 예상**: 6-8시간
+- **버퍼**: +1시간 (예상치 못한 문제)
+
+**현재 상태**: 로컬 환경 완전 구축 완료, 배포 준비 완료
 
 **발표 전까지 여유 있게 진행 권장!**
 

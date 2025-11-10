@@ -99,9 +99,13 @@ class Command(BaseCommand):
             event_data=log_data.get('event_data', {}),
             screen_info=log_data.get('screen_info', {}),
             node_info=log_data.get('node_info', {}),
-            timestamp=log_data.get('timestamp')
+            parent_node_info=log_data.get('parent_node_info'),
+            view_id_resource_name=log_data.get('view_id_resource_name', ''),
+            content_description=log_data.get('content_description', ''),
+            is_sensitive_data=log_data.get('is_sensitive_data', False)
         )
 
         self.stdout.write(self.style.SUCCESS(
-            f'✓ Saved ActivityLog {activity_log.id} for user {log_data.get("user_id")}'
+            f'✓ Saved ActivityLog {activity_log.id} (event: {log_data.get("event_type")}) '
+            f'for user {log_data.get("user_id")}'
         ))
