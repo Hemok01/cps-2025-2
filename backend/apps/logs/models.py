@@ -4,7 +4,7 @@ Activity Log Models
 from django.db import models
 from django.conf import settings
 from apps.tasks.models import Subtask
-from apps.sessions.models import LectureSession
+from apps.sessions.models import LectureSession, RecordingSession
 
 
 class ActivityLog(models.Model):
@@ -42,6 +42,14 @@ class ActivityLog(models.Model):
         related_name='activity_logs',
         verbose_name='세션'
     )
+    recording_session = models.ForeignKey(
+        RecordingSession,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='recorded_events',
+        verbose_name='녹화 세션'
+    )
     event_type = models.CharField(
         max_length=50,
         choices=EVENT_TYPE_CHOICES,
@@ -58,7 +66,27 @@ class ActivityLog(models.Model):
     )
     content_description = models.TextField(blank=True, verbose_name='콘텐츠 설명')
     is_sensitive_data = models.BooleanField(default=False, verbose_name='민감 정보 여부')
+
+    # 녹화 기능을 위한 추가 필드
+    bounds = models.CharField(
+        max_length=100,
+        blank=True,
+        verbose_name='화면 좌표',
+        help_text='[좌상단x,y][우하단x,y] 형식'
+    )
+    is_clickable = models.BooleanField(default=False, verbose_name='클릭 가능 여부')
+    is_editable = models.BooleanField(default=False, verbose_name='편집 가능 여부')
+    is_enabled = models.BooleanField(default=True, verbose_name='활성화 여부')
+    is_focused = models.BooleanField(default=False, verbose_name='포커스 여부')
+
     timestamp = models.DateTimeField(auto_now_add=True, verbose_name='타임스탬프')
+    server_received_at = models.DateTimeField(
+        auto_now_add=True,
+        null=True,
+        blank=True,
+        verbose_name='서버 수신 시각',
+        help_text='서버가 이벤트를 수신한 시각'
+    )
 
     class Meta:
         db_table = 'activity_logs'
@@ -68,6 +96,7 @@ class ActivityLog(models.Model):
             models.Index(fields=['user']),
             models.Index(fields=['subtask']),
             models.Index(fields=['session']),
+            models.Index(fields=['recording_session']),
             models.Index(fields=['timestamp']),
             models.Index(fields=['view_id_resource_name']),
             models.Index(fields=['event_type']),

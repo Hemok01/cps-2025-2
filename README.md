@@ -53,11 +53,21 @@ cps 2025-2/
 │   │   ├── progress/          # 학습 진행률
 │   │   ├── logs/              # 활동 로그
 │   │   ├── help/              # 도움 요청
-│   │   ├── dashboard/         # 강사 대시보드
-│   │   └── students/          # 수강생 API (NEW)
+│   │   ├── dashboard/         # 강사 대시보드 API
+│   │   └── students/          # 수강생 API
 │   └── config/                # Django 설정
 │
-├── android-student/            # Android 수강생 앱 (NEW)
+├── frontend/                   # 강의자 대시보드 (Vite + React)
+│   ├── src/
+│   │   ├── components/        # UI 컴포넌트 (Radix UI)
+│   │   ├── lib/               # API 서비스, 타입 정의
+│   │   ├── pages/             # 페이지 컴포넌트
+│   │   └── styles/            # 전역 스타일
+│   ├── index.html
+│   ├── package.json
+│   └── vite.config.ts
+│
+├── android-student/            # Android 수강생 앱
 │   └── app/
 │       └── src/main/java/com/mobilegpt/student/
 │           ├── data/          # API, Repository
@@ -66,18 +76,27 @@ cps 2025-2/
 │           ├── service/       # AccessibilityService
 │           └── di/            # Hilt DI
 │
-└── design/                     # 디자인 문서
+├── design/                     # 디자인 문서
+└── docker-compose.yml          # Docker Compose 설정
 ```
 
 ## 🚀 시작하기
 
 ### 사전 요구사항
 
-#### Backend
+#### Docker (권장)
+- Docker & Docker Compose
+
+#### Backend (로컬 개발 시)
 - Python 3.11+
 - Django 4.2+
-- Redis (optional)
-- Kafka (optional)
+- PostgreSQL 15+
+- Redis
+- Kafka
+
+#### Frontend (로컬 개발 시)
+- Node.js 20+
+- npm
 
 #### Android App
 - Android Studio Hedgehog (2023.1.1)+
@@ -85,7 +104,30 @@ cps 2025-2/
 - Android SDK 34
 - Gradle 8.2
 
-### 1. 백엔드 실행
+### 1. Docker Compose로 전체 시스템 실행 (권장)
+
+```bash
+# 환경 변수 설정
+cp backend/.env.example backend/.env
+
+# 모든 서비스 시작
+docker-compose up -d
+
+# 로그 확인
+docker-compose logs -f
+
+# 슈퍼유저 생성
+docker-compose exec backend python manage.py createsuperuser
+```
+
+서비스 접속:
+- **프론트엔드 대시보드**: http://localhost:5173
+- **백엔드 API**: http://localhost:8000/api
+- **Django Admin**: http://localhost:8000/admin
+
+### 2. 로컬 개발 (Docker 없이)
+
+#### Backend
 
 ```bash
 cd backend
@@ -99,7 +141,7 @@ pip install -r requirements.txt
 
 # 환경 변수 설정
 cp .env.example .env
-# .env 파일 수정
+# .env 파일 수정 (DB_HOST=localhost 등)
 
 # 데이터베이스 마이그레이션
 python manage.py migrate
@@ -107,13 +149,32 @@ python manage.py migrate
 # 슈퍼유저 생성
 python manage.py createsuperuser
 
-# 서버 실행
-python manage.py runserver
+# 개발 서버 실행 (WebSocket 지원)
+daphne -b 0.0.0.0 -p 8000 config.asgi:application
 ```
 
-서버: http://localhost:8000
+별도 터미널에서 Kafka Consumer 실행:
+```bash
+cd backend
+source venv/bin/activate
+python manage.py consume_activity_logs
+```
 
-### 2. Android 앱 빌드 및 실행
+#### Frontend
+
+```bash
+cd frontend
+
+# 의존성 설치
+npm install
+
+# 개발 서버 실행
+npm run dev
+```
+
+프론트엔드: http://localhost:5173
+
+### 3. Android 앱 빌드 및 실행
 
 ```bash
 cd android-student
@@ -167,10 +228,19 @@ ws://localhost:8000/ws/session/{session_code}/
 ### Backend
 - **Framework**: Django 4.2, Django REST Framework
 - **WebSocket**: Django Channels
-- **Database**: SQLite (개발), PostgreSQL (프로덕션)
+- **Database**: PostgreSQL 15
 - **Caching**: Redis
-- **Message Queue**: Kafka (optional)
+- **Message Queue**: Kafka
+- **Task Queue**: Celery
 - **AI**: OpenAI API (M-GPT)
+
+### Frontend
+- **Build Tool**: Vite
+- **Framework**: React 18
+- **Language**: TypeScript
+- **UI**: Radix UI, Tailwind CSS
+- **Routing**: React Router
+- **State**: React Context API
 
 ### Android
 - **Language**: Kotlin
@@ -227,6 +297,7 @@ adb logcat | grep "MobileGPT_A11y"
 ## 📖 개발 문서
 
 - [백엔드 README](backend/README.md)
+- [프론트엔드 README](frontend/README.md)
 - [Android 앱 README](android-student/README.md)
 - [WebSocket 가이드](backend/WEBSOCKET_GUIDE.md)
 - [기획 문서](plan.md)
@@ -263,11 +334,24 @@ cd android-student
 
 ## 📝 TODO
 
+### Backend
+- [x] REST API 구현
+- [x] WebSocket 통신
+- [x] Kafka 연동
+- [ ] M-GPT 통합
+- [ ] 테스트 코드 작성
+
+### Frontend
+- [x] 강의자 대시보드 UI
+- [x] 실시간 세션 모니터링
+- [ ] 실제 API 연동 (현재 Mock)
+- [ ] WebSocket 실시간 업데이트
+- [ ] 테스트 코드 작성
+
+### Android
 - [ ] UI 화면 구현 (Jetpack Compose)
 - [ ] ViewModel 및 상태 관리
 - [ ] 오버레이 도움말 UI
-- [ ] M-GPT 통합
-- [ ] 강사 대시보드 웹 프론트엔드
 - [ ] 푸시 알림
 - [ ] 오프라인 모드
 - [ ] 테스트 코드 작성

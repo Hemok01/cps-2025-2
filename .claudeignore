@@ -1,0 +1,57 @@
+# Claude Code에서 무시할 파일/폴더
+
+# 의존성 폴더 (컨텍스트 절약)
+node_modules/
+venv/
+env/
+.venv/
+__pycache__/
+*.pyc
+
+# 빌드 결과물
+dist/
+build/
+staticfiles/
+.gradle/
+*.egg-info/
+
+# Android 빌드 파일
+android-student/.gradle/
+android-student/build/
+android-student/app/build/
+android-student/.idea/
+android-student/local.properties
+*.apk
+*.aab
+
+# 미디어 및 로그
+media/
+logs/
+*.log
+
+# 디자인 문서 (필요시만 참조)
+design/
+
+# 환경 설정 (민감 정보)
+.env
+.env.*
+!.env.example
+
+# IDE 설정
+.vscode/
+.idea/
+*.swp
+
+# 임시 폴더
+새\ 폴더/
+tmp/
+temp/
+
+# Docker 볼륨 데이터
+postgres_data/
+redis_data/
+kafka_data/
+
+# OS 파일
+.DS_Store
+Thumbs.db

@@ -1,0 +1,316 @@
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  /* MobileGPT Design System - Color Palette */
+  --font-size: 16px;
+  
+  /* Primary Colors */
+  --primary: #1976D2;
+  --primary-light: #42A5F5;
+  --primary-dark: #1565C0;
+  --primary-foreground: #ffffff;
+  
+  /* Secondary Colors */
+  --secondary: #DC004E;
+  --secondary-light: #F50057;
+  --secondary-dark: #C51162;
+  --secondary-foreground: #ffffff;
+  
+  /* Semantic Colors */
+  --success: #4CAF50;
+  --success-light: #81C784;
+  --success-dark: #388E3C;
+  
+  --error: #F44336;
+  --error-light: #E57373;
+  --error-dark: #D32F2F;
+  
+  --warning: #FF9800;
+  --warning-light: #FFB74D;
+  --warning-dark: #F57C00;
+  
+  --info: #2196F3;
+  --info-light: #64B5F6;
+  --info-dark: #1976D2;
+  
+  /* Neutral Colors */
+  --background: #FFFFFF;
+  --surface: #F5F5F5;
+  --border: #E0E0E0;
+  
+  --foreground: #212121;
+  --text-primary: #212121;
+  --text-secondary: #757575;
+  --text-disabled: #BDBDBD;
+  
+  /* Card */
+  --card: #FFFFFF;
+  --card-foreground: #212121;
+  
+  /* Status Colors */
+  --status-active: #4CAF50;
+  --status-inactive: #9E9E9E;
+  --status-pending: #FF9800;
+  --status-completed: #1976D2;
+  --status-help-needed: #F44336;
+  
+  /* Destructive (alias for error) */
+  --destructive: #F44336;
+  --destructive-foreground: #ffffff;
+  
+  /* Muted */
+  --muted: #F5F5F5;
+  --muted-foreground: #757575;
+  
+  /* Accent */
+  --accent: #E3F2FD;
+  --accent-foreground: #1976D2;
+  
+  /* Input */
+  --input: #E0E0E0;
+  --input-background: #FFFFFF;
+  
+  /* Ring (focus) */
+  --ring: #1976D2;
+  
+  /* Popover */
+  --popover: #FFFFFF;
+  --popover-foreground: #212121;
+  
+  /* Switch */
+  --switch-background: #E0E0E0;
+  
+  /* Chart Colors */
+  --chart-1: #1976D2;
+  --chart-2: #4CAF50;
+  --chart-3: #FF9800;
+  --chart-4: #F44336;
+  --chart-5: #9C27B0;
+  
+  /* Border Radius */
+  --radius: 0.5rem; /* 8px */
+  --radius-sm: 0.25rem; /* 4px */
+  --radius-md: 0.5rem; /* 8px */
+  --radius-lg: 0.75rem; /* 12px */
+  --radius-xl: 1rem; /* 16px */
+  
+  /* Font Weights */
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  
+  /* Spacing (8px base) */
+  --spacing-xs: 0.25rem; /* 4px */
+  --spacing-sm: 0.5rem; /* 8px */
+  --spacing-md: 1rem; /* 16px */
+  --spacing-lg: 1.5rem; /* 24px */
+  --spacing-xl: 2rem; /* 32px */
+  --spacing-xxl: 3rem; /* 48px */
+  
+  /* Sidebar (for compatibility) */
+  --sidebar: #FFFFFF;
+  --sidebar-foreground: #212121;
+  --sidebar-primary: #1976D2;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #F5F5F5;
+  --sidebar-accent-foreground: #212121;
+  --sidebar-border: #E0E0E0;
+  --sidebar-ring: #1976D2;
+}
+
+.dark {
+  --background: #121212;
+  --foreground: #FFFFFF;
+  --card: #1E1E1E;
+  --card-foreground: #FFFFFF;
+  --popover: #1E1E1E;
+  --popover-foreground: #FFFFFF;
+  --primary: #90CAF9;
+  --primary-foreground: #121212;
+  --secondary: #F48FB1;
+  --secondary-foreground: #121212;
+  --muted: #2C2C2C;
+  --muted-foreground: #B0B0B0;
+  --accent: #2C2C2C;
+  --accent-foreground: #90CAF9;
+  --destructive: #EF5350;
+  --destructive-foreground: #FFFFFF;
+  --border: #2C2C2C;
+  --input: #2C2C2C;
+  --ring: #90CAF9;
+  --text-primary: #FFFFFF;
+  --text-secondary: #B0B0B0;
+  --text-disabled: #666666;
+  --sidebar: #1E1E1E;
+  --sidebar-foreground: #FFFFFF;
+  --sidebar-primary: #90CAF9;
+  --sidebar-primary-foreground: #121212;
+  --sidebar-accent: #2C2C2C;
+  --sidebar-accent-foreground: #FFFFFF;
+  --sidebar-border: #2C2C2C;
+  --sidebar-ring: #90CAF9;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-input-background: var(--input-background);
+  --color-switch-background: var(--switch-background);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  }
+}
+
+/**
+ * MobileGPT Design System Typography
+ * Based on Material Design 3 principles for senior-friendly design
+ */
+@layer base {
+  :where(:not(:has([class*=' text-']), :not(:has([class^='text-'])))) {
+    /* Headings - Senior-friendly larger sizes */
+    h1 {
+      font-size: 2rem; /* 32px */
+      font-weight: var(--font-weight-bold);
+      line-height: 1.2;
+      color: var(--text-primary);
+    }
+
+    h2 {
+      font-size: 1.75rem; /* 28px */
+      font-weight: var(--font-weight-semibold);
+      line-height: 1.2;
+      color: var(--text-primary);
+    }
+
+    h3 {
+      font-size: 1.5rem; /* 24px */
+      font-weight: var(--font-weight-semibold);
+      line-height: 1.2;
+      color: var(--text-primary);
+    }
+
+    h4 {
+      font-size: 1.25rem; /* 20px */
+      font-weight: var(--font-weight-semibold);
+      line-height: 1.2;
+      color: var(--text-primary);
+    }
+
+    /* Body Text - Large for readability */
+    p {
+      font-size: 1.125rem; /* 18px - Body 1 */
+      font-weight: var(--font-weight-normal);
+      line-height: 1.5;
+      color: var(--text-primary);
+    }
+
+    /* Labels */
+    label {
+      font-size: 0.875rem; /* 14px */
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+      color: var(--text-secondary);
+    }
+
+    /* Buttons */
+    button {
+      font-size: 1rem; /* 16px */
+      font-weight: var(--font-weight-semibold);
+      line-height: 1;
+    }
+
+    /* Inputs */
+    input,
+    textarea,
+    select {
+      font-size: 1rem; /* 16px */
+      font-weight: var(--font-weight-normal);
+      line-height: 1.5;
+    }
+  }
+}
+
+html {
+  font-size: var(--font-size);
+}
+
+/* Custom utility classes for MobileGPT Design System */
+@layer utilities {
+  /* Status color utilities */
+  .status-active {
+    color: var(--status-active);
+  }
+  
+  .status-inactive {
+    color: var(--status-inactive);
+  }
+  
+  .status-pending {
+    color: var(--status-pending);
+  }
+  
+  .status-completed {
+    color: var(--status-completed);
+  }
+  
+  .status-help-needed {
+    color: var(--status-help-needed);
+  }
+  
+  /* Spacing utilities (8px base) */
+  .spacing-xs { margin: var(--spacing-xs); }
+  .spacing-sm { margin: var(--spacing-sm); }
+  .spacing-md { margin: var(--spacing-md); }
+  .spacing-lg { margin: var(--spacing-lg); }
+  .spacing-xl { margin: var(--spacing-xl); }
+  .spacing-xxl { margin: var(--spacing-xxl); }
+  
+  /* Min touch target for accessibility (48px) */
+  .min-touch-target {
+    min-width: 48px;
+    min-height: 48px;
+  }
+}

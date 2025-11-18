@@ -186,3 +186,64 @@ class SessionStepControl(models.Model):
 
     def __str__(self):
         return f"{self.session.title} - {self.action} at {self.created_at}"
+
+
+class RecordingSession(models.Model):
+    """강의 녹화 세션 모델 (강의자의 시연 녹화)"""
+
+    STATUS_CHOICES = [
+        ('RECORDING', '녹화 중'),
+        ('COMPLETED', '완료'),
+        ('PROCESSING', '처리 중'),
+        ('FAILED', '실패'),
+    ]
+
+    instructor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='recording_sessions',
+        verbose_name='강의자'
+    )
+    title = models.CharField(max_length=200, verbose_name='녹화 제목')
+    description = models.TextField(blank=True, verbose_name='설명')
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='RECORDING',
+        verbose_name='상태'
+    )
+    event_count = models.IntegerField(default=0, verbose_name='이벤트 수')
+    duration_seconds = models.IntegerField(
+        default=0,
+        verbose_name='녹화 시간(초)',
+        help_text='녹화 시작부터 종료까지의 시간'
+    )
+    started_at = models.DateTimeField(null=True, blank=True, verbose_name='시작 시각')
+    ended_at = models.DateTimeField(null=True, blank=True, verbose_name='종료 시각')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='생성일시')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='수정일시')
+
+    # 연결된 강의 (녹화로부터 강의 생성 후)
+    lecture = models.ForeignKey(
+        Lecture,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='recordings',
+        verbose_name='생성된 강의'
+    )
+
+    class Meta:
+        db_table = 'recording_sessions'
+        verbose_name = '녹화 세션'
+        verbose_name_plural = '녹화 세션'
+        indexes = [
+            models.Index(fields=['instructor']),
+            models.Index(fields=['status']),
+            models.Index(fields=['created_at']),
+            models.Index(fields=['lecture']),
+        ]
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.title} - {self.instructor.name}"

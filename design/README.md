@@ -108,22 +108,82 @@
 
 ### 6. [강사용 웹 Dashboard 아키텍처](./06_web_dashboard_architecture.md) 🆕
 - **대상 사용자**: 강사 (PC 웹 브라우저)
-- **내용**: Django Template 기반 웹 Dashboard 설계
+- **내용**: React + TypeScript 기반 웹 Dashboard 설계
 - **기술 스택**:
-  - **Backend**: Django 4.x + Django Channels (WebSocket)
-  - **Frontend**: Django Template + HTMX + Alpine.js
-  - **CSS**: Bootstrap 5
-  - **Charts**: Chart.js
-  - **Real-time**: WebSocket (Django Channels + Redis)
+  - **Frontend**: React 19 + TypeScript + Vite
+  - **UI Library**: Material-UI (MUI) v7
+  - **Real-time**: WebSocket (Native WebSocket API)
+  - **Charts**: Recharts
+  - **HTTP Client**: Axios
 - **주요 기능**:
-  - 실시간 수강생 모니터링 (WebSocket + HTMX)
+  - 실시간 수강생 모니터링 (WebSocket)
   - 진행률 차트 및 통계
   - 도움 요청 알림 및 상세 정보
   - 강의/Task/Subtask CRUD
   - 수강생별 학습 히스토리
-- **URL 구조**: Dashboard 페이지 라우팅
-- **View/Template**: Django CBV 및 템플릿 구조
-- **WebSocket Consumer**: 실시간 업데이트 구현
+- **URL 구조**: SPA 라우팅 (React Router v7)
+- **아키텍처**: Component-based Architecture
+
+---
+
+### 7. [UI 디자인 시스템](./07_ui_design_system.md) 🎨 NEW
+- **내용**: Android 앱과 웹 대시보드의 통합 UI 디자인 시스템
+- **주요 내용**:
+  - **색상 시스템**: Material Design 3 기반 팔레트
+  - **타이포그래피**: 시니어 친화적 폰트 크기 (최소 16px)
+  - **간격 시스템**: 8dp/px 기반 일관된 spacing
+  - **컴포넌트 스타일**: 버튼, 카드, 입력 필드, 테이블 등
+  - **플랫폼별 구현**: Kotlin Compose, React MUI 코드 예시
+- **접근성**: WCAG AA 준수, 고대비 색상, 명확한 터치 영역
+
+---
+
+### 8. [Android 앱 화면 흐름도](./08_android_user_flow.md) 📱 NEW
+- **내용**: 학생 앱의 모든 화면 플로우 및 인터랙션 정의
+- **주요 내용**:
+  - **화면 목록**: LoginScreen, SessionCodeScreen, SessionScreen
+  - **User Flow**: Mermaid 다이어그램으로 시각화
+  - **WebSocket 통신**: 실시간 메시지 송수신 흐름
+  - **AccessibilityService**: 동작 원리 및 로그 수집
+  - **에러 처리**: 네트워크, 인증, 권한 에러 시나리오
+
+---
+
+### 9. [웹 대시보드 화면 흐름도](./09_web_dashboard_user_flow.md) 💻 NEW
+- **내용**: 강사 대시보드의 모든 페이지 플로우 및 기능 정의
+- **주요 내용**:
+  - **페이지 목록**: LoginPage, DashboardPage, **LiveSessionPage**, StatisticsPage
+  - **User Flow**: 로그인 → 세션 생성 → 실시간 강의 → 통계
+  - **LiveSessionPage ⭐**: Zoom 스타일 통합 실시간 강의 화면 (신규)
+  - **WebSocket 통신**: 3개 연결 동시 사용 (세션 제어, 모니터링, 화면 미러링)
+  - **세션 제어**: 시작/일시정지/재개/다음 단계/종료
+
+---
+
+### 10. [실시간 강의 화면 상세 설계](./10_live_session_page.md) ⭐ NEW
+- **내용**: Zoom 스타일 통합 실시간 강의 화면 (LiveSessionPage) 상세 설계
+- **레이아웃**: 3-Column Layout (좌측 패널 + 중앙 화면 + 우측 패널)
+- **주요 기능**:
+  - **좌측 패널**: 강의 정보, 수강생 목록, 연령대별 진도 차트
+  - **중앙 영역**: 선택한 학생의 Android 화면 실시간 미러링
+  - **우측 패널**: 참가자 현황, 그룹별 학습 내용, 실시간 알림 (도움 요청)
+  - **상단 컨트롤 바**: 세션 제어 버튼, 경과 시간 타이머
+- **WebSocket**: 3개 동시 연결로 실시간 데이터 통합
+- **화면 미러링**: 5초마다 학생 화면 이미지 업데이트
+
+---
+
+### 14. [WebSocket 메시지 프로토콜](./14_websocket_protocol.md) 🔌 NEW
+- **내용**: WebSocket 실시간 통신 프로토콜 명세
+- **주요 내용**:
+  - **연결 엔드포인트**: 세션 WebSocket, 대시보드 WebSocket, 화면 미러링 WebSocket
+  - **메시지 포맷**: JSON 기반, 타입별 스키마 정의
+  - **학생→서버**: heartbeat, step_completed, help_request
+  - **서버→학생**: session_start, session_pause, next_step, notification
+  - **서버→강사**: progress_update, help_request, participant_joined
+  - **연결 관리**: 재연결 로직 (지수 백오프), 하트비트
+  - **보안**: JWT 인증, Rate Limiting, 메시지 검증
+- **코드 예시**: TypeScript, Kotlin WebSocket 클라이언트
 
 ---
 
