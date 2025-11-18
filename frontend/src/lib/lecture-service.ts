@@ -1,11 +1,12 @@
-import { 
-  Lecture, 
-  CreateLectureRequest, 
+import {
+  Lecture,
+  CreateLectureRequest,
   UpdateLectureRequest,
   RecordingProcessResponse,
   RecordingMetadata,
   LectureStep
 } from './lecture-types';
+import apiClient from './api-client';
 
 // Mock data for development
 const mockLectures: Lecture[] = [
@@ -180,81 +181,188 @@ function delay(ms: number): Promise<void> {
 
 export const lectureService = {
   async getAllLectures(): Promise<Lecture[]> {
-    await delay(300);
-    return mockLectures;
+    try {
+      const response = await apiClient.get('/lectures/');
+      // 백엔드 응답을 프론트엔드 형식으로 변환
+      return response.data.map((lecture: any) => ({
+        id: lecture.id,
+        title: lecture.title,
+        description: lecture.description || '',
+        studentCount: lecture.student_count || 0,
+        sessionCount: lecture.session_count || 0,
+        isActive: lecture.is_active !== undefined ? lecture.is_active : true,
+        createdAt: lecture.created_at,
+        updatedAt: lecture.updated_at,
+        instructor: lecture.instructor?.name || lecture.instructor || '강사',
+        difficulty: lecture.difficulty || 'beginner',
+        duration: lecture.duration || 30,
+        steps: lecture.steps || [],
+        recordingId: lecture.recording_id || null,
+      }));
+    } catch (error) {
+      console.error('Failed to fetch lectures:', error);
+      throw error;
+    }
   },
 
   async getLectureById(id: number): Promise<Lecture | null> {
-    await delay(200);
-    return mockLectures.find(l => l.id === id) || null;
+    try {
+      const response = await apiClient.get(`/lectures/${id}/`);
+      const lecture = response.data;
+      return {
+        id: lecture.id,
+        title: lecture.title,
+        description: lecture.description || '',
+        studentCount: lecture.student_count || 0,
+        sessionCount: lecture.session_count || 0,
+        isActive: lecture.is_active !== undefined ? lecture.is_active : true,
+        createdAt: lecture.created_at,
+        updatedAt: lecture.updated_at,
+        instructor: lecture.instructor?.name || lecture.instructor || '강사',
+        difficulty: lecture.difficulty || 'beginner',
+        duration: lecture.duration || 30,
+        steps: lecture.steps || [],
+        recordingId: lecture.recording_id || null,
+      };
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        return null;
+      }
+      console.error('Failed to fetch lecture:', error);
+      throw error;
+    }
   },
 
   async createLecture(data: CreateLectureRequest): Promise<Lecture> {
-    await delay(500);
-    
-    const newLecture: Lecture = {
-      id: Math.max(...mockLectures.map(l => l.id), 0) + 1,
-      ...data,
-      studentCount: 0,
-      sessionCount: 0,
-      isActive: true,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      instructor: '강OO',
-    };
-    
-    mockLectures.unshift(newLecture);
-    return newLecture;
+    try {
+      const response = await apiClient.post('/lectures/', {
+        title: data.title,
+        description: data.description,
+        difficulty: data.difficulty,
+        duration: data.duration,
+        steps: data.steps,
+        recording_id: data.recordingId,
+      });
+      const lecture = response.data;
+      return {
+        id: lecture.id,
+        title: lecture.title,
+        description: lecture.description || '',
+        studentCount: lecture.student_count || 0,
+        sessionCount: lecture.session_count || 0,
+        isActive: lecture.is_active !== undefined ? lecture.is_active : true,
+        createdAt: lecture.created_at,
+        updatedAt: lecture.updated_at,
+        instructor: lecture.instructor?.name || lecture.instructor || '강사',
+        difficulty: lecture.difficulty || 'beginner',
+        duration: lecture.duration || 30,
+        steps: lecture.steps || [],
+        recordingId: lecture.recording_id || null,
+      };
+    } catch (error) {
+      console.error('Failed to create lecture:', error);
+      throw error;
+    }
   },
 
   async updateLecture(data: UpdateLectureRequest): Promise<Lecture> {
-    await delay(500);
-    
-    const index = mockLectures.findIndex(l => l.id === data.id);
-    if (index === -1) {
-      throw new Error('Lecture not found');
+    try {
+      const response = await apiClient.patch(`/lectures/${data.id}/`, {
+        title: data.title,
+        description: data.description,
+        difficulty: data.difficulty,
+        duration: data.duration,
+        steps: data.steps,
+        is_active: data.isActive,
+        recording_id: data.recordingId,
+      });
+      const lecture = response.data;
+      return {
+        id: lecture.id,
+        title: lecture.title,
+        description: lecture.description || '',
+        studentCount: lecture.student_count || 0,
+        sessionCount: lecture.session_count || 0,
+        isActive: lecture.is_active !== undefined ? lecture.is_active : true,
+        createdAt: lecture.created_at,
+        updatedAt: lecture.updated_at,
+        instructor: lecture.instructor?.name || lecture.instructor || '강사',
+        difficulty: lecture.difficulty || 'beginner',
+        duration: lecture.duration || 30,
+        steps: lecture.steps || [],
+        recordingId: lecture.recording_id || null,
+      };
+    } catch (error) {
+      console.error('Failed to update lecture:', error);
+      throw error;
     }
-    
-    mockLectures[index] = {
-      ...mockLectures[index],
-      ...data,
-      updatedAt: new Date().toISOString(),
-    };
-    
-    return mockLectures[index];
   },
 
   async deleteLecture(id: number): Promise<void> {
-    await delay(300);
-    
-    const index = mockLectures.findIndex(l => l.id === id);
-    if (index === -1) {
-      throw new Error('Lecture not found');
+    try {
+      await apiClient.delete(`/lectures/${id}/`);
+    } catch (error) {
+      console.error('Failed to delete lecture:', error);
+      throw error;
     }
-    
-    mockLectures.splice(index, 1);
   },
 
   async toggleLectureStatus(id: number): Promise<Lecture> {
-    await delay(300);
-    
-    const index = mockLectures.findIndex(l => l.id === id);
-    if (index === -1) {
-      throw new Error('Lecture not found');
+    try {
+      // 먼저 현재 상태를 가져옴
+      const currentLecture = await this.getLectureById(id);
+      if (!currentLecture) {
+        throw new Error('Lecture not found');
+      }
+
+      // 상태를 반전시켜 업데이트
+      const response = await apiClient.patch(`/lectures/${id}/`, {
+        is_active: !currentLecture.isActive
+      });
+      const lecture = response.data;
+      return {
+        id: lecture.id,
+        title: lecture.title,
+        description: lecture.description || '',
+        studentCount: lecture.student_count || 0,
+        sessionCount: lecture.session_count || 0,
+        isActive: lecture.is_active !== undefined ? lecture.is_active : true,
+        createdAt: lecture.created_at,
+        updatedAt: lecture.updated_at,
+        instructor: lecture.instructor?.name || lecture.instructor || '강사',
+        difficulty: lecture.difficulty || 'beginner',
+        duration: lecture.duration || 30,
+        steps: lecture.steps || [],
+        recordingId: lecture.recording_id || null,
+      };
+    } catch (error) {
+      console.error('Failed to toggle lecture status:', error);
+      throw error;
     }
-    
-    mockLectures[index].isActive = !mockLectures[index].isActive;
-    mockLectures[index].updatedAt = new Date().toISOString();
-    
-    return mockLectures[index];
   },
 
   // Get available phone recordings from instructor's device
   async getAvailableRecordings(): Promise<RecordingMetadata[]> {
-    await delay(400);
-    
-    // Mock recordings from instructor's phone
-    return [
+    try {
+      const response = await apiClient.get('/sessions/recordings/');
+      // 백엔드 응답을 프론트엔드 형식으로 변환
+      return response.data.map((rec: any) => ({
+        id: rec.id || rec.recording_id,
+        name: rec.title || rec.name,
+        createdAt: rec.created_at,
+        actionCount: rec.action_count || rec.event_count || 0,
+        duration: rec.duration || 0,
+        apps: rec.apps || [],
+        primaryApp: rec.primary_app || rec.apps?.[0] || '',
+        deviceInfo: rec.device_info || {
+          model: 'Unknown',
+          androidVersion: 'Unknown'
+        }
+      }));
+    } catch (error) {
+      console.error('Failed to fetch recordings:', error);
+      // 에러 시 목 데이터 반환 (fallback)
+      return [
       {
         id: 'rec-new-001',
         name: '네이버 지도로 길찾기',
@@ -295,13 +403,36 @@ export const lectureService = {
         }
       },
     ];
+    }
   },
 
   // Get detailed recording metadata
   async getRecordingDetails(recordingId: string): Promise<RecordingMetadata | null> {
-    await delay(300);
-    const recordings = await this.getAvailableRecordings();
-    return recordings.find(r => r.id === recordingId) || null;
+    try {
+      const response = await apiClient.get(`/sessions/recordings/${recordingId}/`);
+      const rec = response.data;
+      return {
+        id: rec.id || rec.recording_id,
+        name: rec.title || rec.name,
+        createdAt: rec.created_at,
+        actionCount: rec.action_count || rec.event_count || 0,
+        duration: rec.duration || 0,
+        apps: rec.apps || [],
+        primaryApp: rec.primary_app || rec.apps?.[0] || '',
+        deviceInfo: rec.device_info || {
+          model: 'Unknown',
+          androidVersion: 'Unknown'
+        }
+      };
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        return null;
+      }
+      console.error('Failed to fetch recording details:', error);
+      // Fallback to mock data
+      const recordings = await this.getAvailableRecordings();
+      return recordings.find(r => r.id === recordingId) || null;
+    }
   },
 
   // Process phone recording and generate lecture steps

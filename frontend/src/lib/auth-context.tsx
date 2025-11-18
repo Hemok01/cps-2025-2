@@ -1,11 +1,12 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, AuthTokens } from './types';
+import apiClient from './api-client';
 
 interface AuthContextType {
   user: User | null;
   tokens: AuthTokens | null;
   login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   isLoading: boolean;
 }
 
@@ -30,37 +31,56 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = async (email: string, password: string) => {
-    // Mock API call - in production, this would call the actual backend
-    // POST /api/auth/login/
-    
-    if (email === 'instructor@test.com' && password === 'TestInstructor123!@#') {
-      const mockTokens: AuthTokens = {
-        access: 'mock_access_token_' + Date.now(),
-        refresh: 'mock_refresh_token_' + Date.now(),
+    try {
+      // POST /api/auth/login/ (또는 /api/token/)
+      const loginResponse = await apiClient.post('/token/', { email, password });
+
+      const authTokens: AuthTokens = {
+        access: loginResponse.data.access,
+        refresh: loginResponse.data.refresh,
       };
-      
-      const mockUser: User = {
-        id: 1,
-        email: 'instructor@test.com',
-        name: '김강사',
-        role: 'INSTRUCTOR',
+
+      // 토큰을 먼저 localStorage에 저장 (apiClient가 사용할 수 있도록)
+      localStorage.setItem('auth_tokens', JSON.stringify(authTokens));
+      setTokens(authTokens);
+
+      // GET /api/auth/me/ - 사용자 정보 가져오기
+      const userResponse = await apiClient.get('/auth/me/');
+      const userData: User = {
+        id: userResponse.data.id,
+        email: userResponse.data.email,
+        name: userResponse.data.name,
+        role: userResponse.data.role,
       };
-      
-      setTokens(mockTokens);
-      setUser(mockUser);
-      
-      localStorage.setItem('auth_tokens', JSON.stringify(mockTokens));
-      localStorage.setItem('user', JSON.stringify(mockUser));
-    } else {
-      throw new Error('이메일 또는 비밀번호가 올바르지 않습니다');
+
+      setUser(userData);
+      localStorage.setItem('user', JSON.stringify(userData));
+    } catch (error: any) {
+      // 인증 실패 시 localStorage 정리
+      localStorage.removeItem('auth_tokens');
+      localStorage.removeItem('user');
+
+      if (error.response?.status === 401) {
+        throw new Error('이메일 또는 비밀번호가 올바르지 않습니다');
+      } else {
+        throw new Error(error.response?.data?.detail || '로그인 중 오류가 발생했습니다');
+      }
     }
   };
 
-  const logout = () => {
-    setUser(null);
-    setTokens(null);
-    localStorage.removeItem('auth_tokens');
-    localStorage.removeItem('user');
+  const logout = async () => {
+    try {
+      // POST /api/auth/logout/ (optional - 백엔드에 로그아웃 알림)
+      await apiClient.post('/auth/logout/');
+    } catch (error) {
+      // 로그아웃 요청이 실패해도 로컬에서는 정리
+      console.error('Logout request failed:', error);
+    } finally {
+      setUser(null);
+      setTokens(null);
+      localStorage.removeItem('auth_tokens');
+      localStorage.removeItem('user');
+    }
   };
 
   return (

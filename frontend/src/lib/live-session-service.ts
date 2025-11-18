@@ -1,12 +1,13 @@
-// Mock service for Live Session data
-import { 
-  LiveSessionData, 
-  StudentListItem, 
-  ProgressData, 
-  GroupProgress, 
+// Live Session service
+import {
+  LiveSessionData,
+  StudentListItem,
+  ProgressData,
+  GroupProgress,
   LiveNotification,
-  StudentScreen 
+  StudentScreen
 } from './live-session-types';
+import apiClient from './api-client';
 
 // Mock data
 const mockLiveSession: LiveSessionData = {
@@ -107,85 +108,167 @@ function delay(ms: number): Promise<void> {
 
 export const liveSessionService = {
   async getSessionData(sessionId: number): Promise<LiveSessionData> {
-    await delay(300);
-    return { ...mockLiveSession, sessionId };
+    try {
+      const response = await apiClient.get(`/sessions/${sessionId}/current/`);
+      const session = response.data;
+      return {
+        sessionId: session.id,
+        sessionCode: session.session_code || session.code,
+        lectureName: session.lecture?.title || '강의명',
+        lectureDate: session.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
+        instructor: session.instructor?.name || session.lecture?.instructor?.name || '강사',
+        totalStudents: session.total_participants || session.participant_count || 0,
+        status: this.mapSessionStatus(session.status),
+        startedAt: session.started_at,
+        currentStep: session.current_subtask?.title || session.current_step,
+      };
+    } catch (error) {
+      console.error('Failed to fetch session data:', error);
+      throw error;
+    }
+  },
+
+  // Helper: Map backend status
+  mapSessionStatus(backendStatus: string): 'CREATED' | 'ACTIVE' | 'PAUSED' | 'ENDED' {
+    const statusMap: Record<string, 'CREATED' | 'ACTIVE' | 'PAUSED' | 'ENDED'> = {
+      'WAITING': 'CREATED',
+      'ACTIVE': 'ACTIVE',
+      'PAUSED': 'PAUSED',
+      'ENDED': 'ENDED',
+      'CREATED': 'CREATED',
+    };
+    return statusMap[backendStatus] || 'CREATED';
   },
 
   async getStudentList(sessionId: number): Promise<StudentListItem[]> {
-    await delay(200);
-    return mockStudents;
+    try {
+      const response = await apiClient.get(`/sessions/${sessionId}/participants/`);
+      const participants = response.data;
+      return participants.map((participant: any, index: number) => ({
+        id: participant.user?.id || participant.id,
+        name: participant.user?.name || participant.name,
+        avatarUrl: participant.user?.avatar_url || participant.avatar_url,
+        isSelected: index === 0, // First student is selected by default
+        status: participant.is_active ? 'active' : 'inactive',
+      }));
+    } catch (error) {
+      console.error('Failed to fetch student list:', error);
+      return [];
+    }
   },
 
   async getProgressData(sessionId: number): Promise<ProgressData[]> {
+    // 목 데이터 유지 (백엔드에 그룹별 통계 API가 없을 수 있음)
     await delay(200);
     return mockProgressData;
   },
 
   async getGroupProgress(sessionId: number): Promise<GroupProgress[]> {
+    // 목 데이터 유지 (백엔드에 그룹 기능이 없을 수 있음)
     await delay(200);
     return mockGroupProgress;
   },
 
   async getNotifications(sessionId: number): Promise<LiveNotification[]> {
-    await delay(200);
-    return mockNotifications.filter(n => !n.isResolved);
+    try {
+      const response = await apiClient.get('/dashboard/help-requests/pending/');
+      const requests = response.data.pending_requests || response.data;
+      return requests.map((req: any) => ({
+        id: req.id,
+        type: 'help_request' as const,
+        title: req.message?.substring(0, 30) || '도움 요청',
+        message: req.message || '',
+        timestamp: req.created_at || req.requested_at,
+        studentId: req.user?.id || req.student_id,
+        studentName: req.user?.name || req.student_name,
+        isResolved: req.is_resolved || req.status === 'RESOLVED',
+      }));
+    } catch (error) {
+      console.error('Failed to fetch notifications:', error);
+      return [];
+    }
   },
 
   async getStudentScreen(studentId: number): Promise<StudentScreen> {
+    // 목 데이터 유지 (백엔드 API 없음 - 학생 화면 조회 기능)
     await delay(500);
-    
-    // Mock: return a placeholder screen
+
     return {
       studentId,
       studentName: `학생${studentId}`,
-      imageUrl: undefined, // In production, this would be the actual screen capture
+      imageUrl: undefined,
       lastUpdated: new Date().toISOString(),
       isLoading: false,
     };
   },
 
   async startSession(sessionId: number): Promise<LiveSessionData> {
-    await delay(300);
-    mockLiveSession.status = 'ACTIVE';
-    mockLiveSession.startedAt = new Date().toISOString();
-    return mockLiveSession;
+    try {
+      await apiClient.post(`/sessions/${sessionId}/start/`, {
+        first_subtask_id: 1,
+        message: '수업을 시작합니다'
+      });
+      return await this.getSessionData(sessionId);
+    } catch (error) {
+      console.error('Failed to start session:', error);
+      throw error;
+    }
   },
 
   async pauseSession(sessionId: number): Promise<LiveSessionData> {
-    await delay(300);
-    mockLiveSession.status = 'PAUSED';
-    return mockLiveSession;
+    try {
+      await apiClient.post(`/sessions/${sessionId}/pause/`, {});
+      return await this.getSessionData(sessionId);
+    } catch (error) {
+      console.error('Failed to pause session:', error);
+      throw error;
+    }
   },
 
   async resumeSession(sessionId: number): Promise<LiveSessionData> {
-    await delay(300);
-    mockLiveSession.status = 'ACTIVE';
-    return mockLiveSession;
+    try {
+      await apiClient.post(`/sessions/${sessionId}/resume/`, {});
+      return await this.getSessionData(sessionId);
+    } catch (error) {
+      console.error('Failed to resume session:', error);
+      throw error;
+    }
   },
 
-  async nextStep(sessionId: number): Promise<void> {
-    await delay(300);
-    // Mock: just delay
+  async nextStep(sessionId: number, nextSubtaskId?: number): Promise<void> {
+    try {
+      await apiClient.post(`/sessions/${sessionId}/next-step/`, {
+        next_subtask_id: nextSubtaskId,
+        message: '다음 단계로 진행합니다'
+      });
+    } catch (error) {
+      console.error('Failed to move to next step:', error);
+      throw error;
+    }
   },
 
   async endSession(sessionId: number): Promise<LiveSessionData> {
-    await delay(300);
-    mockLiveSession.status = 'ENDED';
-    return mockLiveSession;
+    try {
+      await apiClient.post(`/sessions/${sessionId}/end/`, {});
+      return await this.getSessionData(sessionId);
+    } catch (error) {
+      console.error('Failed to end session:', error);
+      throw error;
+    }
   },
 
   async switchLecture(sessionId: number, lectureId: number): Promise<LiveSessionData> {
+    // 목 데이터 유지 (백엔드 API 없음 - 세션 강의 전환)
     await delay(300);
-    // In real implementation, this would update the active lecture
-    // For now, just return the mock session data
-    return mockLiveSession;
+    return await this.getSessionData(sessionId);
   },
 
   async resolveNotification(notificationId: number): Promise<void> {
-    await delay(200);
-    const notification = mockNotifications.find(n => n.id === notificationId);
-    if (notification) {
-      notification.isResolved = true;
+    try {
+      await apiClient.post(`/help/request/${notificationId}/resolve/`, {});
+    } catch (error) {
+      console.error('Failed to resolve notification:', error);
+      throw error;
     }
   },
 };

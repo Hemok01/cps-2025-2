@@ -1,15 +1,15 @@
-// Mock API service for the MobileGPT Instructor Dashboard
-// In production, replace these with actual API calls
+// API service for the MobileGPT Instructor Dashboard
 
-import { 
-  Lecture, 
-  Session, 
-  Participant, 
-  StudentProgress, 
-  HelpRequest, 
+import {
+  Lecture,
+  Session,
+  Participant,
+  StudentProgress,
+  HelpRequest,
   LectureStatistics,
-  SessionStatus 
+  SessionStatus
 } from './types';
+import apiClient from './api-client';
 
 // Mock data
 const mockLectures: Lecture[] = [
@@ -162,43 +162,68 @@ const mockStatistics: LectureStatistics = {
 export const apiService = {
   // Lectures
   async getLectures(): Promise<Lecture[]> {
-    await delay(300);
-    return mockLectures;
+    try {
+      const response = await apiClient.get('/lectures/');
+      return response.data.map((lecture: any) => ({
+        id: lecture.id,
+        title: lecture.title,
+        description: lecture.description || '',
+        isActive: lecture.is_active !== undefined ? lecture.is_active : true,
+        studentCount: lecture.student_count || 0,
+        sessionCount: lecture.session_count || 0,
+      }));
+    } catch (error) {
+      console.error('Failed to fetch lectures:', error);
+      throw error;
+    }
   },
 
   // Sessions
   async createSession(lectureIds: number[], title: string): Promise<Session> {
-    await delay(500);
-    
-    const lectures = lectureIds.map((lectureId, index) => {
-      const lecture = mockLectures.find(l => l.id === lectureId);
-      if (!lecture) throw new Error(`Lecture ${lectureId} not found`);
-      
+    try {
+      // 백엔드는 하나의 강의로 세션을 생성하므로, 첫 번째 강의로 세션 생성
+      const lectureId = lectureIds[0];
+      if (!lectureId) {
+        throw new Error('At least one lecture is required');
+      }
+
+      const response = await apiClient.post(`/lectures/${lectureId}/sessions/create/`, {
+        title
+      });
+
+      const session = response.data;
       return {
-        id: index + 1,
-        lectureId,
-        lectureName: lecture.title,
-        order: index + 1,
-        isActive: index === 0, // First lecture is active
-        completedAt: undefined,
+        id: session.id,
+        title: session.title,
+        code: session.session_code,
+        status: this.mapSessionStatus(session.status),
+        createdAt: session.created_at,
+        lectures: lectureIds.map((id, index) => ({
+          id: index + 1,
+          lectureId: id,
+          lectureName: session.lecture?.title || `Lecture ${id}`,
+          order: index + 1,
+          isActive: index === 0,
+          completedAt: undefined,
+        })),
+        activeLectureId: lectureId,
       };
-    });
-    
-    const code = generateSessionCode();
-    const newSession: Session = {
-      id: sessionIdCounter++,
-      title,
-      code,
-      status: 'CREATED',
-      createdAt: new Date().toISOString(),
-      lectures,
-      activeLectureId: lectures[0]?.lectureId,
+    } catch (error) {
+      console.error('Failed to create session:', error);
+      throw error;
+    }
+  },
+
+  // Helper: Map backend status to frontend status
+  mapSessionStatus(backendStatus: string): SessionStatus {
+    const statusMap: Record<string, SessionStatus> = {
+      'WAITING': 'CREATED',
+      'ACTIVE': 'ACTIVE',
+      'PAUSED': 'PAUSED',
+      'ENDED': 'ENDED',
+      'CREATED': 'CREATED',
     };
-    
-    mockSessions.push(newSession);
-    mockParticipants.set(newSession.id, []);
-    
-    return newSession;
+    return statusMap[backendStatus] || 'CREATED';
   },
 
   async switchLecture(sessionId: number, lectureId: number): Promise<Session> {
@@ -225,99 +250,259 @@ export const apiService = {
   },
 
   async getSessionById(sessionId: number): Promise<Session | null> {
-    await delay(200);
-    return mockSessions.find(s => s.id === sessionId) || null;
+    try {
+      const response = await apiClient.get(`/sessions/${sessionId}/current/`);
+      const session = response.data;
+      return {
+        id: session.id,
+        title: session.title,
+        code: session.session_code || session.code,
+        status: this.mapSessionStatus(session.status),
+        createdAt: session.created_at,
+        startedAt: session.started_at,
+        endedAt: session.ended_at,
+        currentStep: session.current_subtask?.title || session.current_step,
+        lectures: session.lectures || [],
+        activeLectureId: session.lecture?.id || session.active_lecture_id,
+      };
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        return null;
+      }
+      console.error('Failed to fetch session:', error);
+      throw error;
+    }
   },
 
-  async startSession(sessionId: number): Promise<Session> {
-    await delay(300);
-    const session = mockSessions.find(s => s.id === sessionId);
-    if (!session) throw new Error('Session not found');
-    
-    session.status = 'ACTIVE';
-    session.startedAt = new Date().toISOString();
-    return session;
+  async startSession(sessionId: number, firstSubtaskId?: number): Promise<Session> {
+    try {
+      const response = await apiClient.post(`/sessions/${sessionId}/start/`, {
+        first_subtask_id: firstSubtaskId || 1,
+        message: '수업을 시작합니다'
+      });
+      const session = response.data;
+      return {
+        id: session.id,
+        title: session.title,
+        code: session.session_code || session.code,
+        status: this.mapSessionStatus(session.status),
+        createdAt: session.created_at,
+        startedAt: session.started_at,
+        currentStep: session.current_subtask?.title || session.current_step,
+        lectures: session.lectures || [],
+        activeLectureId: session.lecture?.id || session.active_lecture_id,
+      };
+    } catch (error) {
+      console.error('Failed to start session:', error);
+      throw error;
+    }
   },
 
   async pauseSession(sessionId: number): Promise<Session> {
-    await delay(300);
-    const session = mockSessions.find(s => s.id === sessionId);
-    if (!session) throw new Error('Session not found');
-    
-    session.status = 'PAUSED';
-    return session;
+    try {
+      const response = await apiClient.post(`/sessions/${sessionId}/pause/`, {});
+      const session = response.data;
+      return {
+        id: session.id,
+        title: session.title,
+        code: session.session_code || session.code,
+        status: this.mapSessionStatus(session.status),
+        createdAt: session.created_at,
+        startedAt: session.started_at,
+        currentStep: session.current_subtask?.title || session.current_step,
+        lectures: session.lectures || [],
+        activeLectureId: session.lecture?.id || session.active_lecture_id,
+      };
+    } catch (error) {
+      console.error('Failed to pause session:', error);
+      throw error;
+    }
   },
 
   async resumeSession(sessionId: number): Promise<Session> {
-    await delay(300);
-    const session = mockSessions.find(s => s.id === sessionId);
-    if (!session) throw new Error('Session not found');
-    
-    session.status = 'ACTIVE';
-    return session;
+    try {
+      const response = await apiClient.post(`/sessions/${sessionId}/resume/`, {});
+      const session = response.data;
+      return {
+        id: session.id,
+        title: session.title,
+        code: session.session_code || session.code,
+        status: this.mapSessionStatus(session.status),
+        createdAt: session.created_at,
+        startedAt: session.started_at,
+        currentStep: session.current_subtask?.title || session.current_step,
+        lectures: session.lectures || [],
+        activeLectureId: session.lecture?.id || session.active_lecture_id,
+      };
+    } catch (error) {
+      console.error('Failed to resume session:', error);
+      throw error;
+    }
   },
 
-  async nextStep(sessionId: number): Promise<Session> {
-    await delay(300);
-    const session = mockSessions.find(s => s.id === sessionId);
-    if (!session) throw new Error('Session not found');
-    
-    // Mock: increment step
-    const currentStepMatch = session.currentStep?.match(/Subtask (\d+)/);
-    const currentNum = currentStepMatch ? parseInt(currentStepMatch[1]) : 0;
-    session.currentStep = `Task 1 - Subtask ${currentNum + 1}`;
-    
-    return session;
+  async nextStep(sessionId: number, nextSubtaskId?: number): Promise<Session> {
+    try {
+      const response = await apiClient.post(`/sessions/${sessionId}/next-step/`, {
+        next_subtask_id: nextSubtaskId,
+        message: '다음 단계로 진행합니다'
+      });
+      const session = response.data;
+      return {
+        id: session.id,
+        title: session.title,
+        code: session.session_code || session.code,
+        status: this.mapSessionStatus(session.status),
+        createdAt: session.created_at,
+        startedAt: session.started_at,
+        currentStep: session.current_subtask?.title || session.current_step,
+        lectures: session.lectures || [],
+        activeLectureId: session.lecture?.id || session.active_lecture_id,
+      };
+    } catch (error) {
+      console.error('Failed to move to next step:', error);
+      throw error;
+    }
   },
 
   async endSession(sessionId: number): Promise<Session> {
-    await delay(300);
-    const session = mockSessions.find(s => s.id === sessionId);
-    if (!session) throw new Error('Session not found');
-    
-    session.status = 'ENDED';
-    session.endedAt = new Date().toISOString();
-    return session;
+    try {
+      const response = await apiClient.post(`/sessions/${sessionId}/end/`, {});
+      const session = response.data;
+      return {
+        id: session.id,
+        title: session.title,
+        code: session.session_code || session.code,
+        status: this.mapSessionStatus(session.status),
+        createdAt: session.created_at,
+        startedAt: session.started_at,
+        endedAt: session.ended_at,
+        currentStep: session.current_subtask?.title || session.current_step,
+        lectures: session.lectures || [],
+        activeLectureId: session.lecture?.id || session.active_lecture_id,
+      };
+    } catch (error) {
+      console.error('Failed to end session:', error);
+      throw error;
+    }
   },
 
   async getSessionParticipants(sessionId: number): Promise<Participant[]> {
-    await delay(200);
-    return mockParticipants.get(sessionId) || [];
+    try {
+      const response = await apiClient.get(`/sessions/${sessionId}/participants/`);
+      return response.data.map((participant: any) => ({
+        id: participant.user?.id || participant.id,
+        name: participant.user?.name || participant.name,
+        email: participant.user?.email || participant.email,
+        joinedAt: participant.joined_at,
+        isActive: participant.is_active !== undefined ? participant.is_active : true,
+      }));
+    } catch (error) {
+      console.error('Failed to fetch participants:', error);
+      return [];
+    }
   },
 
   // Monitoring
   async getStudentProgress(lectureId: number): Promise<StudentProgress[]> {
-    await delay(400);
-    return mockStudentProgress;
+    try {
+      const response = await apiClient.get(`/dashboard/lectures/${lectureId}/students/`);
+      const students = response.data.students || response.data;
+      return students.map((student: any) => ({
+        studentId: student.user_id || student.id,
+        studentName: student.name,
+        currentStep: student.current_subtask?.title || student.current_step || '',
+        progress: student.progress_rate ? student.progress_rate * 100 : 0,
+        status: this.mapStudentStatus(student.progress_rate, student.help_count),
+        helpCount: student.help_count || 0,
+        lastActivity: student.last_activity || new Date().toISOString(),
+      }));
+    } catch (error) {
+      console.error('Failed to fetch student progress:', error);
+      return [];
+    }
+  },
+
+  // Helper: Map student progress to status
+  mapStudentStatus(progressRate: number, helpCount: number): 'in_progress' | 'completed' | 'help_needed' {
+    if (helpCount > 0) return 'help_needed';
+    if (progressRate >= 1) return 'completed';
+    return 'in_progress';
   },
 
   // Help Requests
   async getPendingHelpRequests(): Promise<HelpRequest[]> {
-    await delay(300);
-    return mockHelpRequests.filter(r => !r.isResolved);
+    try {
+      const response = await apiClient.get('/dashboard/help-requests/pending/');
+      const requests = response.data.pending_requests || response.data;
+      return requests.map((req: any) => ({
+        id: req.id,
+        studentId: req.user?.id || req.student_id,
+        studentName: req.user?.name || req.student_name,
+        studentEmail: req.user?.email || req.student_email,
+        taskName: req.subtask?.title || req.task_name || '',
+        issue: req.message || req.issue || '',
+        requestedAt: req.created_at || req.requested_at,
+        isResolved: req.is_resolved || req.status === 'RESOLVED',
+        priority: req.priority || 'medium',
+      }));
+    } catch (error) {
+      console.error('Failed to fetch help requests:', error);
+      return [];
+    }
   },
 
   async getPendingHelpRequestCount(): Promise<number> {
-    await delay(200);
-    return mockHelpRequests.filter(r => !r.isResolved).length;
+    try {
+      const requests = await this.getPendingHelpRequests();
+      return requests.length;
+    } catch (error) {
+      console.error('Failed to fetch help request count:', error);
+      return 0;
+    }
   },
 
   async resolveHelpRequest(requestId: number): Promise<void> {
-    await delay(300);
-    const request = mockHelpRequests.find(r => r.id === requestId);
-    if (request) {
-      request.isResolved = true;
+    try {
+      await apiClient.post(`/help/request/${requestId}/resolve/`, {});
+    } catch (error) {
+      console.error('Failed to resolve help request:', error);
+      throw error;
     }
   },
 
   // Statistics
   async getLectureStatistics(lectureId: number): Promise<LectureStatistics> {
-    await delay(500);
-    return {
-      ...mockStatistics,
-      lectureId,
-      lectureName: mockLectures.find(l => l.id === lectureId)?.title || 'Unknown',
-    };
+    try {
+      const response = await apiClient.get(`/dashboard/statistics/lecture/${lectureId}/`);
+      const stats = response.data;
+      return {
+        lectureId,
+        lectureName: stats.lecture_name || stats.lectureName || 'Unknown',
+        totalStudents: stats.total_students || 0,
+        activeStudents: stats.active_students || 0,
+        completionRate: stats.completion_rate || 0,
+        averageProgress: stats.average_progress || 0,
+        helpRequestsCount: stats.total_help_requests || stats.help_requests_count || 0,
+        sessionCount: stats.session_count || 0,
+        commonIssues: stats.common_difficulties || [],
+        lastUpdated: stats.last_updated || new Date().toISOString(),
+      };
+    } catch (error) {
+      console.error('Failed to fetch lecture statistics:', error);
+      // Return fallback data
+      return {
+        lectureId,
+        lectureName: 'Unknown',
+        totalStudents: 0,
+        activeStudents: 0,
+        completionRate: 0,
+        averageProgress: 0,
+        helpRequestsCount: 0,
+        sessionCount: 0,
+        commonIssues: [],
+        lastUpdated: new Date().toISOString(),
+      };
+    }
   },
 };
 
