@@ -46,7 +46,7 @@ export function Layout({ children }: LayoutProps) {
                 <span className="text-white">📱</span>
               </div>
               <h1 className="text-xl" style={{ color: 'var(--primary)', fontWeight: 'var(--font-weight-semibold)' }}>
-                MobileGPT 강사 대시보드
+                MobEdu 강사 대시보드
               </h1>
             </div>
           </div>

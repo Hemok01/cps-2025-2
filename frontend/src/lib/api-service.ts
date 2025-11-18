@@ -164,12 +164,27 @@ export const apiService = {
   async getLectures(): Promise<Lecture[]> {
     try {
       const response = await apiClient.get('/lectures/');
-      return response.data.map((lecture: any) => ({
+
+      // 에러 응답 체크
+      if (response.data.error) {
+        throw new Error(response.data.error.message || 'Failed to fetch lectures');
+      }
+
+      // DRF 페이지네이션 응답 처리 (results 필드에 실제 데이터가 있음)
+      const lecturesData = response.data.results || response.data;
+
+      // 배열이 아니면 빈 배열 반환
+      if (!Array.isArray(lecturesData)) {
+        console.warn('Unexpected response format:', response.data);
+        return [];
+      }
+
+      return lecturesData.map((lecture: any) => ({
         id: lecture.id,
         title: lecture.title,
         description: lecture.description || '',
         isActive: lecture.is_active !== undefined ? lecture.is_active : true,
-        studentCount: lecture.student_count || 0,
+        studentCount: lecture.student_count || lecture.enrolled_count || 0,
         sessionCount: lecture.session_count || 0,
       }));
     } catch (error) {
@@ -389,7 +404,16 @@ export const apiService = {
   async getSessionParticipants(sessionId: number): Promise<Participant[]> {
     try {
       const response = await apiClient.get(`/sessions/${sessionId}/participants/`);
-      return response.data.map((participant: any) => ({
+
+      // DRF 페이지네이션 응답 처리
+      const participantsData = response.data.results || response.data;
+
+      if (!Array.isArray(participantsData)) {
+        console.warn('Unexpected response format for participants:', response.data);
+        return [];
+      }
+
+      return participantsData.map((participant: any) => ({
         id: participant.user?.id || participant.id,
         name: participant.user?.name || participant.name,
         email: participant.user?.email || participant.email,
@@ -406,7 +430,13 @@ export const apiService = {
   async getStudentProgress(lectureId: number): Promise<StudentProgress[]> {
     try {
       const response = await apiClient.get(`/dashboard/lectures/${lectureId}/students/`);
-      const students = response.data.students || response.data;
+      const students = response.data.results || response.data.students || response.data;
+
+      if (!Array.isArray(students)) {
+        console.warn('Unexpected response format for student progress:', response.data);
+        return [];
+      }
+
       return students.map((student: any) => ({
         studentId: student.user_id || student.id,
         studentName: student.name,
@@ -433,7 +463,13 @@ export const apiService = {
   async getPendingHelpRequests(): Promise<HelpRequest[]> {
     try {
       const response = await apiClient.get('/dashboard/help-requests/pending/');
-      const requests = response.data.pending_requests || response.data;
+      const requests = response.data.results || response.data.pending_requests || response.data;
+
+      if (!Array.isArray(requests)) {
+        console.warn('Unexpected response format for help requests:', response.data);
+        return [];
+      }
+
       return requests.map((req: any) => ({
         id: req.id,
         studentId: req.user?.id || req.student_id,

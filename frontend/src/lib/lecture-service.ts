@@ -183,12 +183,27 @@ export const lectureService = {
   async getAllLectures(): Promise<Lecture[]> {
     try {
       const response = await apiClient.get('/lectures/');
+
+      // 에러 응답 체크
+      if (response.data.error) {
+        throw new Error(response.data.error.message || 'Failed to fetch lectures');
+      }
+
+      // DRF 페이지네이션 응답 처리 (results 필드에 실제 데이터가 있음)
+      const lecturesData = response.data.results || response.data;
+
+      // 배열이 아니면 빈 배열 반환
+      if (!Array.isArray(lecturesData)) {
+        console.warn('Unexpected response format:', response.data);
+        return [];
+      }
+
       // 백엔드 응답을 프론트엔드 형식으로 변환
-      return response.data.map((lecture: any) => ({
+      return lecturesData.map((lecture: any) => ({
         id: lecture.id,
         title: lecture.title,
         description: lecture.description || '',
-        studentCount: lecture.student_count || 0,
+        studentCount: lecture.student_count || lecture.enrolled_count || 0,
         sessionCount: lecture.session_count || 0,
         isActive: lecture.is_active !== undefined ? lecture.is_active : true,
         createdAt: lecture.created_at,

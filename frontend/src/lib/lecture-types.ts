@@ -31,6 +31,7 @@ export interface LectureStep {
     targetPackage?: string; // app package
     targetViewId?: string; // view ID
     targetText?: string; // button text
+    contentDescription?: string; // accessibility description
     bounds?: string; // coordinates
   };
 }
