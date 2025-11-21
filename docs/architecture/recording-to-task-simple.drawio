@@ -1,0 +1,186 @@
+<mxfile host="app.diagrams.net" modified="2025-01-19T00:00:00.000Z" agent="Claude Code" version="24.0.0">
+  <diagram name="녹화→과제 생성 (간략)" id="recording-simple">
+    <mxGraphModel dx="1422" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="800" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- Title -->
+        <mxCell id="title" value="녹화 → 과제 자동 생성 플로우" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=24;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="300" y="20" width="600" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Phase 1 -->
+        <mxCell id="phase1-box" value="1단계: 녹화" style="swimlane;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="100" y="100" width="300" height="150" as="geometry" />
+        </mxCell>
+
+        <mxCell id="phase1-1" value="• 강사가 스마트폰에서 시연" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12" vertex="1" parent="phase1-box">
+          <mxGeometry x="20" y="40" width="260" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="phase1-2" value="• AccessibilityService가 모든 동작 캡처" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12" vertex="1" parent="phase1-box">
+          <mxGeometry x="20" y="65" width="260" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="phase1-3" value="• 예: YouTube 열기 → 검색 → 재생" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12" vertex="1" parent="phase1-box">
+          <mxGeometry x="20" y="90" width="260" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="phase1-4" value="• 활동 로그가 DB에 저장됨" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontStyle=2" vertex="1" parent="phase1-box">
+          <mxGeometry x="20" y="115" width="260" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- Arrow 1 -->
+        <mxCell id="arrow1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=3;strokeColor=#82b366;endArrow=block;endFill=1" edge="1" parent="1" source="phase1-box" target="phase2-box">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Phase 2 -->
+        <mxCell id="phase2-box" value="2단계: 자동 분석 (규칙 기반)" style="swimlane;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="100" y="300" width="300" height="170" as="geometry" />
+        </mxCell>
+
+        <mxCell id="phase2-1" value="Task 구분 조건:" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontStyle=1" vertex="1" parent="phase2-box">
+          <mxGeometry x="20" y="35" width="260" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="phase2-2" value="• 앱 전환 (package_name 변경)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11" vertex="1" parent="phase2-box">
+          <mxGeometry x="30" y="55" width="250" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="phase2-3" value="• 10초 이상 시간 간격" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11" vertex="1" parent="phase2-box">
+          <mxGeometry x="30" y="75" width="250" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="phase2-4" value="Subtask 구분 조건:" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontStyle=1" vertex="1" parent="phase2-box">
+          <mxGeometry x="20" y="100" width="260" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="phase2-5" value="• 화면 전환, 액션 시퀀스" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11" vertex="1" parent="phase2-box">
+          <mxGeometry x="30" y="120" width="250" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="phase2-6" value="• 3-10초 시간 간격" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11" vertex="1" parent="phase2-box">
+          <mxGeometry x="30" y="140" width="250" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- Arrow 2 -->
+        <mxCell id="arrow2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=3;strokeColor=#d79b00;endArrow=block;endFill=1" edge="1" parent="1" source="phase2-box" target="phase3-box">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Phase 3 -->
+        <mxCell id="phase3-box" value="3단계: AI 정제 (선택)" style="swimlane;whiteSpace=wrap;html=1;fillColor=#b1ddf0;strokeColor=#10739e;fontSize=14;fontStyle=1;dashed=1;dashPattern=5 5" vertex="1" parent="1">
+          <mxGeometry x="100" y="520" width="300" height="150" as="geometry" />
+        </mxCell>
+
+        <mxCell id="phase3-1" value="OpenAI GPT가 수행:" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontStyle=1" vertex="1" parent="phase3-box">
+          <mxGeometry x="20" y="35" width="260" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="phase3-2" value="• 사용자 친화적 제목/설명 생성" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11" vertex="1" parent="phase3-box">
+          <mxGeometry x="30" y="55" width="250" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="phase3-3" value="• 난이도 추정 (쉬움/보통/어려움)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11" vertex="1" parent="phase3-box">
+          <mxGeometry x="30" y="75" width="250" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="phase3-4" value="• 힌트 자동 추가" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11" vertex="1" parent="phase3-box">
+          <mxGeometry x="30" y="95" width="250" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="phase3-5" value="• 중복 단계 병합 및 오류 수정" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11" vertex="1" parent="phase3-box">
+          <mxGeometry x="30" y="115" width="250" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- Arrow 3 -->
+        <mxCell id="arrow3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=3;strokeColor=#10739e;endArrow=block;endFill=1;dashed=1;dashPattern=5 5" edge="1" parent="1" source="phase3-box" target="phase4-box">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Phase 4 -->
+        <mxCell id="phase4-box" value="4단계: 강의 생성" style="swimlane;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="600" y="300" width="500" height="370" as="geometry" />
+        </mxCell>
+
+        <mxCell id="phase4-example" value="생성 결과 예시:" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=13;fontStyle=1" vertex="1" parent="phase4-box">
+          <mxGeometry x="20" y="35" width="460" height="25" as="geometry" />
+        </mxCell>
+
+        <mxCell id="phase4-lecture" value="강의: &quot;YouTube에서 동영상 검색하는 방법&quot;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1;fontSize=12;align=left" vertex="1" parent="phase4-box">
+          <mxGeometry x="20" y="65" width="460" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="phase4-task1" value="Task 1: YouTube 앱 실행 (쉬움)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;fontSize=11;align=left" vertex="1" parent="phase4-box">
+          <mxGeometry x="40" y="110" width="440" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="phase4-sub1-1" value="1.1. YouTube 아이콘 터치" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10" vertex="1" parent="phase4-box">
+          <mxGeometry x="60" y="145" width="400" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="phase4-sub1-2" value="      (홈 화면에서 빨간색 재생 버튼 찾기)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=9;fontStyle=2" vertex="1" parent="phase4-box">
+          <mxGeometry x="60" y="162" width="400" height="15" as="geometry" />
+        </mxCell>
+
+        <mxCell id="phase4-task2" value="Task 2: 동영상 검색 (보통)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;fontSize=11;align=left" vertex="1" parent="phase4-box">
+          <mxGeometry x="40" y="190" width="440" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="phase4-sub2-1" value="2.1. 검색 아이콘 터치 (화면 상단 돋보기)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10" vertex="1" parent="phase4-box">
+          <mxGeometry x="60" y="225" width="400" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="phase4-sub2-2" value="2.2. 검색어 입력" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10" vertex="1" parent="phase4-box">
+          <mxGeometry x="60" y="245" width="400" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="phase4-sub2-3" value="2.3. 검색 버튼 터치" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10" vertex="1" parent="phase4-box">
+          <mxGeometry x="60" y="265" width="400" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="phase4-task3" value="Task 3: 동영상 재생 (쉬움)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;fontSize=11;align=left" vertex="1" parent="phase4-box">
+          <mxGeometry x="40" y="300" width="440" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="phase4-sub3-1" value="3.1. 원하는 동영상 터치" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10" vertex="1" parent="phase4-box">
+          <mxGeometry x="60" y="335" width="400" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- Arrow to Phase 4 -->
+        <mxCell id="arrow-to-phase4" value="DB 저장" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=3;strokeColor=#6c8ebf;endArrow=block;endFill=1;fontSize=12" edge="1" parent="1" source="phase2-box" target="phase4-box">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="550" y="385" />
+              <mxPoint x="550" y="485" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Info Box -->
+        <mxCell id="info" value="💡 하이브리드 접근법의 장점" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=13;fontStyle=1;align=left" vertex="1" parent="1">
+          <mxGeometry x="600" y="100" width="500" height="150" as="geometry" />
+        </mxCell>
+
+        <mxCell id="info1" value="• 규칙 기반: 빠르고 비용 없음, 명확한 경우 정확" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11" vertex="1" parent="1">
+          <mxGeometry x="620" y="140" width="460" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="info2" value="• AI 정제: 의미론적 이해, 사용자 친화적 언어, 맥락적 힌트" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11" vertex="1" parent="1">
+          <mxGeometry x="620" y="165" width="460" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="info3" value="• 자동화율 80%+: 강사는 최종 검토만 필요" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11" vertex="1" parent="1">
+          <mxGeometry x="620" y="190" width="460" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="info4" value="• AI 비용: 녹화당 약 $0.01-0.05 (50-200 이벤트 기준)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11;fontStyle=2" vertex="1" parent="1">
+          <mxGeometry x="620" y="215" width="460" height="20" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

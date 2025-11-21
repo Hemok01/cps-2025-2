@@ -1,0 +1,246 @@
+<mxfile host="app.diagrams.net" modified="2025-01-19T00:00:00.000Z" agent="Claude Code" version="24.0.0">
+  <diagram name="시스템 아키텍처 (상세)" id="system-architecture">
+    <mxGraphModel dx="1422" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1200" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- Frontend Layer -->
+        <mxCell id="frontend-container" value="강사용 웹 (React)" style="swimlane;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="40" y="40" width="280" height="240" as="geometry" />
+        </mxCell>
+        <mxCell id="frontend-react" value="UI 프레임워크&#xa;React + TypeScript" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="frontend-container">
+          <mxGeometry x="20" y="40" width="240" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="frontend-ui" value="UI 라이브러리&#xa;Radix UI + Tailwind" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="frontend-container">
+          <mxGeometry x="20" y="90" width="240" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="frontend-api" value="통신&#xa;REST API + WebSocket" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="frontend-container">
+          <mxGeometry x="20" y="140" width="240" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="frontend-pages" value="화면&#xa;대시보드 | 강의 | 세션 제어" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="frontend-container">
+          <mxGeometry x="20" y="190" width="240" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Android App Layer -->
+        <mxCell id="android-container" value="학생용 앱 (Android)" style="swimlane;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="40" y="320" width="280" height="280" as="geometry" />
+        </mxCell>
+        <mxCell id="android-ui" value="UI&#xa;Jetpack Compose + MVVM" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="android-container">
+          <mxGeometry x="20" y="40" width="240" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="android-viewmodel" value="비즈니스 로직&#xa;ViewModel" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="android-container">
+          <mxGeometry x="20" y="90" width="240" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="android-repo" value="데이터 관리&#xa;Repository" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="android-container">
+          <mxGeometry x="20" y="140" width="240" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="android-api" value="통신&#xa;Retrofit + WebSocket" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="android-container">
+          <mxGeometry x="20" y="190" width="240" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="android-accessibility" value="사용자 행동 감지&#xa;AccessibilityService" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1" vertex="1" parent="android-container">
+          <mxGeometry x="20" y="240" width="240" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Backend Layer -->
+        <mxCell id="backend-container" value="백엔드 서버 (Django)" style="swimlane;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="400" y="40" width="480" height="560" as="geometry" />
+        </mxCell>
+
+        <!-- Django Apps -->
+        <mxCell id="backend-api" value="REST API" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="backend-container">
+          <mxGeometry x="20" y="40" width="440" height="35" as="geometry" />
+        </mxCell>
+
+        <mxCell id="backend-apps-label" value="주요 모듈:" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontStyle=1" vertex="1" parent="backend-container">
+          <mxGeometry x="20" y="85" width="100" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="backend-accounts" value="사용자 인증&#xa;accounts" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="backend-container">
+          <mxGeometry x="20" y="110" width="140" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="backend-lectures" value="강의 관리&#xa;lectures" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="backend-container">
+          <mxGeometry x="170" y="110" width="140" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="backend-sessions" value="세션 제어&#xa;sessions" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="backend-container">
+          <mxGeometry x="320" y="110" width="140" height="45" as="geometry" />
+        </mxCell>
+
+        <mxCell id="backend-tasks" value="과제&#xa;tasks" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="backend-container">
+          <mxGeometry x="20" y="165" width="140" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="backend-progress" value="진도 추적&#xa;progress" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="backend-container">
+          <mxGeometry x="170" y="165" width="140" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="backend-logs" value="활동 로그&#xa;logs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1" vertex="1" parent="backend-container">
+          <mxGeometry x="320" y="165" width="140" height="45" as="geometry" />
+        </mxCell>
+
+        <mxCell id="backend-help" value="도움 요청&#xa;help" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="backend-container">
+          <mxGeometry x="20" y="220" width="210" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="backend-dashboard" value="대시보드&#xa;dashboard" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="backend-container">
+          <mxGeometry x="250" y="220" width="210" height="45" as="geometry" />
+        </mxCell>
+
+        <!-- WebSocket -->
+        <mxCell id="backend-websocket" value="실시간 통신 (WebSocket)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontStyle=1" vertex="1" parent="backend-container">
+          <mxGeometry x="20" y="285" width="440" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="backend-consumers" value="세션 | 대시보드 | 진도 업데이트" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="backend-container">
+          <mxGeometry x="20" y="330" width="440" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- Kafka Integration -->
+        <mxCell id="backend-kafka-label" value="이벤트 스트리밍:" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontStyle=1" vertex="1" parent="backend-container">
+          <mxGeometry x="20" y="375" width="150" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="backend-kafka-producer" value="Kafka Producer&#xa;(비동기 전송)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="backend-container">
+          <mxGeometry x="20" y="400" width="210" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="backend-kafka-consumer" value="Kafka Consumer&#xa;(DB 저장)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="backend-container">
+          <mxGeometry x="250" y="400" width="210" height="45" as="geometry" />
+        </mxCell>
+
+        <!-- Celery -->
+        <mxCell id="backend-celery" value="백그라운드 작업&#xa;Celery Worker" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="backend-container">
+          <mxGeometry x="20" y="460" width="440" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- M-GPT Integration -->
+        <mxCell id="backend-mgpt" value="AI 분석 서비스 (예정)&#xa;OpenAI GPT" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#b1ddf0;strokeColor=#10739e;dashed=1;dashPattern=5 5;" vertex="1" parent="backend-container">
+          <mxGeometry x="20" y="510" width="440" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Infrastructure Layer -->
+        <mxCell id="infra-container" value="인프라" style="swimlane;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="960" y="40" width="320" height="560" as="geometry" />
+        </mxCell>
+
+        <mxCell id="infra-postgres" value="메인 데이터베이스&#xa;PostgreSQL" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="infra-container">
+          <mxGeometry x="40" y="50" width="240" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="infra-redis" value="캐시 + 실시간 동기화&#xa;Redis" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="infra-container">
+          <mxGeometry x="40" y="150" width="240" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="infra-kafka-zk-container" value="메시지 큐" style="swimlane;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="infra-container">
+          <mxGeometry x="20" y="250" width="280" height="170" as="geometry" />
+        </mxCell>
+        <mxCell id="infra-kafka" value="이벤트 브로커&#xa;Kafka&#xa;&#xa;토픽: 활동로그 | 도움요청" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="infra-kafka-zk-container">
+          <mxGeometry x="20" y="40" width="240" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="infra-zookeeper" value="조정 서비스&#xa;Zookeeper" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="infra-kafka-zk-container">
+          <mxGeometry x="20" y="130" width="240" height="35" as="geometry" />
+        </mxCell>
+
+        <mxCell id="infra-docker" value="컨테이너 오케스트레이션&#xa;Docker Compose" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1" vertex="1" parent="infra-container">
+          <mxGeometry x="40" y="450" width="240" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- External Services -->
+        <mxCell id="external-container" value="외부 서비스 (예정)" style="swimlane;whiteSpace=wrap;html=1;fillColor=#b1ddf0;strokeColor=#10739e;dashed=1;dashPattern=5 5;" vertex="1" parent="1">
+          <mxGeometry x="960" y="650" width="320" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="external-openai" value="AI 분석&#xa;OpenAI GPT&#xa;녹화 분석 | 도움 요청 분석 | 과제 자동 생성" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#b1ddf0;strokeColor=#10739e;" vertex="1" parent="external-container">
+          <mxGeometry x="20" y="40" width="280" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- Connections -->
+        <!-- Frontend to Backend -->
+        <mxCell id="conn-frontend-rest" value="REST API" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#6c8ebf;" edge="1" parent="1" source="frontend-api" target="backend-api">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="conn-frontend-ws" value="WebSocket&#xa;(실시간)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#b85450;dashed=1;" edge="1" parent="1" source="frontend-api" target="backend-websocket">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Android to Backend -->
+        <mxCell id="conn-android-rest" value="REST API" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#82b366;" edge="1" parent="1" source="android-api" target="backend-api">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="conn-android-ws" value="WebSocket&#xa;(실시간)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#b85450;dashed=1;" edge="1" parent="1" source="android-api" target="backend-websocket">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Android AccessibilityService to Backend Logs -->
+        <mxCell id="conn-android-logs" value="활동 로그&#xa;(배치 전송)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=3;strokeColor=#d6b656;" edge="1" parent="1" source="android-accessibility" target="backend-logs">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Backend to PostgreSQL -->
+        <mxCell id="conn-backend-postgres" value="데이터 저장" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#6c8ebf;" edge="1" parent="1" source="backend-container" target="infra-postgres">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="880" y="200" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Backend to Redis -->
+        <mxCell id="conn-backend-redis" value="캐시 +&#xa;실시간 동기화" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#d79b00;" edge="1" parent="1" source="backend-websocket" target="infra-redis">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="880" y="350" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Backend to Kafka -->
+        <mxCell id="conn-backend-kafka-producer" value="비동기 전송" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#d6b656;" edge="1" parent="1" source="backend-kafka-producer" target="infra-kafka">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="conn-backend-kafka-consumer" value="데이터 수신&#xa;DB 저장" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#d6b656;dashed=1;" edge="1" parent="1" source="infra-kafka" target="backend-kafka-consumer">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Backend to OpenAI -->
+        <mxCell id="conn-backend-openai" value="AI 분석 요청" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#10739e;dashed=1;dashPattern=5 5;" edge="1" parent="1" source="backend-mgpt" target="external-openai">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Legend -->
+        <mxCell id="legend-container" value="범례" style="swimlane;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="40" y="650" width="280" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-rest" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#6c8ebf;" edge="1" parent="legend-container">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="20" y="45" as="sourcePoint" />
+            <mxPoint x="70" y="45" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="legend-rest-label" value="REST API (HTTP)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="legend-container">
+          <mxGeometry x="80" y="35" width="180" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="legend-ws" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#b85450;dashed=1;" edge="1" parent="legend-container">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="20" y="70" as="sourcePoint" />
+            <mxPoint x="70" y="70" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="legend-ws-label" value="WebSocket (실시간)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="legend-container">
+          <mxGeometry x="80" y="60" width="180" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="legend-kafka" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#d6b656;" edge="1" parent="legend-container">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="20" y="95" as="sourcePoint" />
+            <mxPoint x="70" y="95" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="legend-kafka-label" value="Kafka 메시지 큐" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="legend-container">
+          <mxGeometry x="80" y="85" width="180" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="legend-planned" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#10739e;dashed=1;dashPattern=5 5;" edge="1" parent="legend-container">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="20" y="120" as="sourcePoint" />
+            <mxPoint x="70" y="120" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="legend-planned-label" value="예정 / 외부 서비스" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="legend-container">
+          <mxGeometry x="80" y="110" width="180" height="20" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

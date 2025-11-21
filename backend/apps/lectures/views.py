@@ -28,6 +28,18 @@ class LectureListCreateView(generics.ListCreateAPIView):
         """Set instructor to current user"""
         serializer.save(instructor=self.request.user)
 
+    def create(self, request, *args, **kwargs):
+        """Override create to return full lecture data"""
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+
+        # Return with full LectureSerializer
+        lecture = serializer.instance
+        output_serializer = LectureSerializer(lecture)
+        headers = self.get_success_headers(output_serializer.data)
+        return Response(output_serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
 
 class LectureDetailView(generics.RetrieveUpdateDestroyAPIView):
     """Retrieve, update or delete a lecture"""

@@ -1,0 +1,183 @@
+<mxfile host="app.diagrams.net" modified="2025-01-19T00:00:00.000Z" agent="Claude Code" version="24.0.0">
+  <diagram name="Recording to Task Flow" id="recording-to-task-flow">
+    <mxGraphModel dx="1422" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1400" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- Title -->
+        <mxCell id="title" value="Recording to Task/Subtask Auto-Generation - Hybrid Algorithm (Rule-based + AI)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=18;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="200" y="20" width="1200" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Phase 1: Recording -->
+        <mxCell id="phase1-label" value="Phase 1: Recording" style="text;html=1;strokeColor=none;fillColor=#d5e8d4;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=1;fontSize=14;fontStyle=1;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="40" y="80" width="200" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step1" value="1. Instructor starts recording&#xa;POST /api/sessions/recordings/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="40" y="140" width="280" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step2" value="2. Backend creates RecordingSession&#xa;status=RECORDING" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="40" y="210" width="280" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step3" value="3. Instructor performs app actions&#xa;(e.g., Open YouTube → Search → Play)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="40" y="280" width="280" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step4" value="4. AccessibilityService captures events&#xa;Links to recording_session_id" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="40" y="350" width="280" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step5" value="5. Events saved via Kafka pipeline&#xa;(Same as Activity Log Pipeline)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="40" y="420" width="280" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step6" value="6. Instructor stops recording&#xa;POST /api/sessions/recordings/{id}/stop/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="40" y="490" width="280" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step7" value="7. Backend updates:&#xa;• status=COMPLETED&#xa;• event_count&#xa;• duration" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="40" y="560" width="280" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Arrow to Phase 2 -->
+        <mxCell id="arrow1-2" value="Trigger Analysis" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=3;strokeColor=#000000;endArrow=block;endFill=1;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="320" y="590" as="sourcePoint" />
+            <mxPoint x="400" y="590" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Phase 2: Rule-based Segmentation -->
+        <mxCell id="phase2-label" value="Phase 2: Rule-based Segmentation" style="text;html=1;strokeColor=none;fillColor=#dae8fc;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=1;fontSize=14;fontStyle=1;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="400" y="80" width="300" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step8" value="8. Fetch all ActivityLogs&#xa;WHERE recording_session_id = {id}&#xa;ORDER BY timestamp ASC" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="400" y="140" width="300" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step9-container" value="9. Rule-based Segmentation Algorithm" style="swimlane;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="400" y="220" width="300" height="400" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step9-rule1" value="Rule 1: Task Boundaries&#xa;&#xa;Split into Tasks when:&#xa;• App switch (package_name changes)&#xa;• Time gap &gt; 10 seconds&#xa;• SCREEN_CHANGE to different app&#xa;&#xa;Example:&#xa;Task 1: Open YouTube&#xa;Task 2: Search for video&#xa;Task 3: Play video" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;align=left;" vertex="1" parent="step9-container">
+          <mxGeometry x="20" y="40" width="260" height="140" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step9-rule2" value="Rule 2: Subtask Boundaries&#xa;&#xa;Split into Subtasks when:&#xa;• SCREEN_CHANGE within same app&#xa;• Time gap 3-10 seconds&#xa;• Distinct action sequence&#xa;  (e.g., TEXT_INPUT → CLICK)&#xa;&#xa;Example (Task 2):&#xa;Subtask 2.1: Click search box&#xa;Subtask 2.2: Type &quot;cat videos&quot;&#xa;Subtask 2.3: Click search button" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;align=left;" vertex="1" parent="step9-container">
+          <mxGeometry x="20" y="190" width="260" height="160" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step9-rule3" value="Rule 3: Event Type Classification&#xa;&#xa;Subtask types by event:&#xa;• CLICK → &quot;Click on {view_id}&quot;&#xa;• TEXT_INPUT → &quot;Enter text&quot;&#xa;• SCROLL → &quot;Scroll to find...&quot;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;align=left;" vertex="1" parent="step9-container">
+          <mxGeometry x="20" y="360" width="260" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step10" value="10. Output: Preliminary Structure&#xa;&#xa;[&#xa;  {&#xa;    &quot;task_title&quot;: &quot;Open YouTube&quot;,&#xa;    &quot;events&quot;: [log1, log2, ...],&#xa;    &quot;subtasks&quot;: [&#xa;      {&#xa;        &quot;title&quot;: &quot;Click YouTube icon&quot;,&#xa;        &quot;action_type&quot;: &quot;CLICK&quot;,&#xa;        &quot;events&quot;: [log1]&#xa;      }&#xa;    ]&#xa;  },&#xa;  ...&#xa;]" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;fontFamily=Courier New;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="400" y="640" width="300" height="180" as="geometry" />
+        </mxCell>
+
+        <!-- Arrow to Phase 3 -->
+        <mxCell id="arrow2-3" value="AI Refinement" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=3;strokeColor=#000000;endArrow=block;endFill=1;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="700" y="730" as="sourcePoint" />
+            <mxPoint x="780" y="730" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Phase 3: AI Refinement -->
+        <mxCell id="phase3-label" value="Phase 3: AI Refinement (OpenAI GPT)" style="text;html=1;strokeColor=none;fillColor=#b1ddf0;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=1;fontSize=14;fontStyle=1;strokeColor=#10739e;" vertex="1" parent="1">
+          <mxGeometry x="780" y="80" width="360" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step11" value="11. Prepare GPT Prompt&#xa;&#xa;System: &quot;You are an expert at analyzing user&#xa;interactions and creating learning tasks.&quot;&#xa;&#xa;User: &quot;Analyze this sequence of mobile app&#xa;events and refine the task/subtask structure.&#xa;Provide clear, beginner-friendly titles and&#xa;descriptions. Estimate difficulty level.&quot;&#xa;&#xa;Input: Preliminary structure + event details" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#b1ddf0;strokeColor=#10739e;align=left;" vertex="1" parent="1">
+          <mxGeometry x="780" y="140" width="360" height="160" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step12" value="12. Call OpenAI GPT API&#xa;&#xa;POST https://api.openai.com/v1/chat/completions&#xa;{&#xa;  &quot;model&quot;: &quot;gpt-4&quot;,&#xa;  &quot;messages&quot;: [...],&#xa;  &quot;temperature&quot;: 0.3,&#xa;  &quot;response_format&quot;: {&quot;type&quot;: &quot;json_object&quot;}&#xa;}" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#b1ddf0;strokeColor=#10739e;align=left;fontFamily=Courier New;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="780" y="320" width="360" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step13-container" value="13. GPT Analysis Output" style="swimlane;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="780" y="440" width="360" height="380" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step13-output" value="Refinements:&#xa;• Task titles (user-friendly)&#xa;  &quot;Open YouTube&quot; → &quot;Launch YouTube App&quot;&#xa;&#xa;• Subtask descriptions&#xa;  &quot;Click search box&quot; → &quot;Tap the search icon&#xa;  at the top of the screen&quot;&#xa;&#xa;• Difficulty estimation&#xa;  - Task 1: EASY (1 step, familiar app)&#xa;  - Task 2: MEDIUM (3 steps, typing required)&#xa;  - Task 3: EASY (1 step, simple tap)&#xa;&#xa;• Action type validation&#xa;  Correct misclassifications&#xa;&#xa;• Merge redundant steps&#xa;  &quot;Scroll down&quot; + &quot;Scroll down&quot; → &quot;Scroll&#xa;  until you find the video&quot;&#xa;&#xa;• Add helpful hints&#xa;  &quot;Look for the magnifying glass icon&quot;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;" vertex="1" parent="step13-container">
+          <mxGeometry x="20" y="40" width="320" height="240" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step13-json" value="JSON Response Format:&#xa;{&#xa;  &quot;lecture_title&quot;: &quot;How to Search...&quot;,&#xa;  &quot;tasks&quot;: [{&#xa;    &quot;title&quot;: &quot;Launch YouTube App&quot;,&#xa;    &quot;difficulty&quot;: &quot;EASY&quot;,&#xa;    &quot;subtasks&quot;: [{&#xa;      &quot;title&quot;: &quot;Tap YouTube icon&quot;,&#xa;      &quot;description&quot;: &quot;...&quot;,&#xa;      &quot;action_type&quot;: &quot;CLICK&quot;,&#xa;      &quot;hint&quot;: &quot;...&quot;&#xa;    }]&#xa;  }]&#xa;}" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;fontFamily=Courier New;fontSize=9;" vertex="1" parent="step13-container">
+          <mxGeometry x="20" y="290" width="320" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Arrow to Phase 4 -->
+        <mxCell id="arrow3-4" value="Create Database Objects" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=3;strokeColor=#000000;endArrow=block;endFill=1;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1140" y="730" as="sourcePoint" />
+            <mxPoint x="1220" y="730" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Phase 4: Database Creation -->
+        <mxCell id="phase4-label" value="Phase 4: Create Lecture Structure" style="text;html=1;strokeColor=none;fillColor=#ffe6cc;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=1;fontSize=14;fontStyle=1;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="1220" y="80" width="320" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step14" value="14. Create Lecture&#xa;&#xa;Lecture.objects.create(&#xa;  title=gpt_response[&quot;lecture_title&quot;],&#xa;  description=gpt_response[&quot;description&quot;],&#xa;  instructor=current_user,&#xa;  created_from_recording=recording_session&#xa;)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;align=left;fontFamily=Courier New;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1220" y="140" width="320" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step15" value="15. Create Tasks&#xa;&#xa;For each task in gpt_response:&#xa;  Task.objects.create(&#xa;    lecture=lecture,&#xa;    title=task[&quot;title&quot;],&#xa;    description=task.get(&quot;description&quot;),&#xa;    order=index,&#xa;    difficulty=task[&quot;difficulty&quot;]&#xa;  )" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;align=left;fontFamily=Courier New;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1220" y="260" width="320" height="120" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step16" value="16. Create Subtasks&#xa;&#xa;For each subtask in task[&quot;subtasks&quot;]:&#xa;  Subtask.objects.create(&#xa;    task=task,&#xa;    title=subtask[&quot;title&quot;],&#xa;    description=subtask[&quot;description&quot;],&#xa;    action_type=subtask[&quot;action_type&quot;],&#xa;    order=index,&#xa;    hint=subtask.get(&quot;hint&quot;),&#xa;    # Link to original events&#xa;    metadata={&quot;event_ids&quot;: [...]}&#xa;  )" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;align=left;fontFamily=Courier New;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1220" y="400" width="320" height="160" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step17" value="17. Update RecordingSession&#xa;&#xa;recording_session.generated_lecture = lecture&#xa;recording_session.save()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;align=left;fontFamily=Courier New;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1220" y="580" width="320" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step18" value="18. Notify Instructor&#xa;&#xa;&quot;Your recording has been processed!&#xa;A new lecture has been created with&#xa;{task_count} tasks and {subtask_count} steps.&quot;&#xa;&#xa;[View Lecture] [Edit Tasks]" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;align=left;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="1220" y="660" width="320" height="100" as="geometry" />
+        </mxCell>
+
+        <!-- Summary Box -->
+        <mxCell id="summary-container" value="Algorithm Summary" style="swimlane;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="40" y="900" width="1500" height="180" as="geometry" />
+        </mxCell>
+
+        <mxCell id="summary-hybrid" value="Hybrid Approach Benefits:" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;fontStyle=1" vertex="1" parent="summary-container">
+          <mxGeometry x="20" y="40" width="200" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="summary-rule" value="Rule-based (Phase 2):&#xa;✓ Fast and deterministic&#xa;✓ No API costs&#xa;✓ Works offline&#xa;✓ Handles obvious cases&#xa;  (app switches, time gaps)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;" vertex="1" parent="summary-container">
+          <mxGeometry x="20" y="70" width="440" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="summary-ai" value="AI-based (Phase 3):&#xa;✓ Semantic understanding&#xa;✓ User-friendly language&#xa;✓ Contextual hints&#xa;✓ Difficulty estimation&#xa;✓ Error correction&#xa;  (merges, renames, reorders)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#b1ddf0;strokeColor=#10739e;align=left;" vertex="1" parent="summary-container">
+          <mxGeometry x="480" y="70" width="440" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="summary-result" value="Result:&#xa;✓ Accurate task segmentation&#xa;✓ Natural language titles&#xa;✓ Beginner-friendly descriptions&#xa;✓ Instructor can review/edit before publishing&#xa;✓ 80%+ automation rate" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;align=left;fontStyle=1" vertex="1" parent="summary-container">
+          <mxGeometry x="940" y="70" width="540" height="90" as="geometry" />
+        </mxCell>
+
+        <!-- Cost Estimate -->
+        <mxCell id="cost-note" value="Cost Estimate (GPT-4):&#xa;~$0.01 - $0.05 per recording&#xa;(50-200 events)" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;fillColor=#fff2cc;strokeColor=#d6b656;size=15;" vertex="1" parent="1">
+          <mxGeometry x="1220" y="900" width="200" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Future Enhancement -->
+        <mxCell id="future-note" value="Future Enhancement:&#xa;• Fine-tune custom model&#xa;• Use instructor feedback to improve&#xa;• Support multiple languages" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;fillColor=#b1ddf0;strokeColor=#10739e;size=15;" vertex="1" parent="1">
+          <mxGeometry x="1450" y="900" width="200" height="80" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

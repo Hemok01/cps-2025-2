@@ -1,0 +1,225 @@
+<mxfile host="app.diagrams.net" modified="2025-01-19T00:00:00.000Z" agent="Claude Code" version="24.0.0">
+  <diagram name="Activity Log Pipeline" id="activity-log-pipeline">
+    <mxGraphModel dx="1422" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1000" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- Title -->
+        <mxCell id="title" value="Activity Log Pipeline - Event-Driven Architecture" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=18;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="400" y="20" width="800" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Step 1: Android AccessibilityService -->
+        <mxCell id="step1-container" value="Step 1: Event Capture" style="swimlane;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="80" y="100" width="280" height="280" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step1-accessibility" value="AccessibilityService" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1" vertex="1" parent="step1-container">
+          <mxGeometry x="40" y="40" width="200" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step1-events" value="Captured Events:&#xa;• CLICK&#xa;• LONG_CLICK&#xa;• SCROLL&#xa;• TEXT_INPUT&#xa;• SCREEN_CHANGE" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;" vertex="1" parent="step1-container">
+          <mxGeometry x="40" y="90" width="200" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step1-data" value="Extracted Data:&#xa;• Element bounds&#xa;• Package name&#xa;• View ID&#xa;• Content description&#xa;• is_clickable, is_editable&#xa;• Timestamp" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;" vertex="1" parent="step1-container">
+          <mxGeometry x="40" y="190" width="200" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Arrow 1 to 2 -->
+        <mxCell id="arrow1-2" value="Batch logs locally&#xa;(Every 5s or 10 events)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=3;strokeColor=#82b366;endArrow=block;endFill=1;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="360" y="240" as="sourcePoint" />
+            <mxPoint x="440" y="240" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Step 2: HTTP POST to Backend -->
+        <mxCell id="step2-container" value="Step 2: API Request" style="swimlane;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="440" y="100" width="280" height="280" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step2-endpoint" value="POST /api/logs/batch/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1" vertex="1" parent="step2-container">
+          <mxGeometry x="40" y="40" width="200" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step2-auth" value="Headers:&#xa;Authorization: Bearer {token}" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="step2-container">
+          <mxGeometry x="40" y="90" width="200" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step2-payload" value="Request Body:&#xa;{&#xa;  &quot;logs&quot;: [&#xa;    {&#xa;      &quot;event_type&quot;: &quot;CLICK&quot;,&#xa;      &quot;package_name&quot;: &quot;com.youtube&quot;,&#xa;      &quot;view_id&quot;: &quot;search_button&quot;,&#xa;      &quot;bounds&quot;: &quot;100,200,300,250&quot;,&#xa;      &quot;timestamp&quot;: &quot;2025-01-19T...&quot;,&#xa;      ...&#xa;    },&#xa;    ...&#xa;  ]&#xa;}" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;" vertex="1" parent="step2-container">
+          <mxGeometry x="40" y="140" width="200" height="130" as="geometry" />
+        </mxCell>
+
+        <!-- Arrow 2 to 3 -->
+        <mxCell id="arrow2-3" value="Async processing" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=3;strokeColor=#6c8ebf;endArrow=block;endFill=1;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="720" y="240" as="sourcePoint" />
+            <mxPoint x="800" y="240" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Step 3: Django View + Kafka Producer -->
+        <mxCell id="step3-container" value="Step 3: Backend Processing" style="swimlane;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="800" y="100" width="320" height="280" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step3-view" value="ActivityLogViewSet&#xa;(DRF ViewSet)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontStyle=1" vertex="1" parent="step3-container">
+          <mxGeometry x="40" y="40" width="240" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step3-validate" value="1. Validate request data&#xa;2. Extract user from JWT&#xa;3. Link to session/recording" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;" vertex="1" parent="step3-container">
+          <mxGeometry x="40" y="90" width="240" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step3-kafka" value="ActivityLogProducer&#xa;(Singleton, Async)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1" vertex="1" parent="step3-container">
+          <mxGeometry x="40" y="150" width="240" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step3-send" value="Send to Kafka topic:&#xa;&quot;activity-logs&quot;&#xa;&#xa;With callback handlers:&#xa;• on_success: log&#xa;• on_error: fallback to DB" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;" vertex="1" parent="step3-container">
+          <mxGeometry x="40" y="200" width="240" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step3-response" value="Return 202 ACCEPTED&#xa;(Processing async)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="860" y="410" width="200" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Arrow to Android (response) -->
+        <mxCell id="arrow3-android" value="HTTP 202" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#82b366;endArrow=block;endFill=1;dashed=1;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="860" y="430" as="sourcePoint" />
+            <mxPoint x="360" y="430" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Step 4: Kafka Broker -->
+        <mxCell id="step4-container" value="Step 4: Message Queue" style="swimlane;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="1200" y="100" width="320" height="280" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step4-broker" value="Apache Kafka Broker" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1" vertex="1" parent="step4-container">
+          <mxGeometry x="60" y="40" width="200" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step4-topic" value="Topic: &quot;activity-logs&quot;&#xa;&#xa;Partitions: 3&#xa;Replication: 1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="step4-container">
+          <mxGeometry x="60" y="120" width="200" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step4-features" value="Features:&#xa;• High throughput&#xa;• Durability&#xa;• Ordered delivery&#xa;• Fault tolerance" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;align=left;" vertex="1" parent="step4-container">
+          <mxGeometry x="60" y="190" width="200" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Arrow 3 to 4 -->
+        <mxCell id="arrow3-4" value="Producer.send()&#xa;(Async, non-blocking)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=3;strokeColor=#d6b656;endArrow=block;endFill=1;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1120" y="240" as="sourcePoint" />
+            <mxPoint x="1200" y="240" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Step 5: Kafka Consumer -->
+        <mxCell id="step5-container" value="Step 5: Consumer Processing" style="swimlane;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="1200" y="480" width="320" height="280" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step5-consumer" value="Kafka Consumer&#xa;(Management Command)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1" vertex="1" parent="step5-container">
+          <mxGeometry x="60" y="40" width="200" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step5-command" value="python manage.py&#xa;consume_activity_logs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontFamily=Courier New;" vertex="1" parent="step5-container">
+          <mxGeometry x="60" y="90" width="200" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step5-process" value="Processing:&#xa;1. Poll messages from topic&#xa;2. Deserialize JSON&#xa;3. Create ActivityLog object&#xa;4. Save to PostgreSQL&#xa;5. Commit offset" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;" vertex="1" parent="step5-container">
+          <mxGeometry x="60" y="140" width="200" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step5-error" value="Error Handling:&#xa;• Retry on failure&#xa;• Dead letter queue&#xa;• Logging" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;align=left;" vertex="1" parent="step5-container">
+          <mxGeometry x="60" y="240" width="200" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- Arrow 4 to 5 -->
+        <mxCell id="arrow4-5" value="Consumer.poll()&#xa;(Continuous)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=3;strokeColor=#9673a6;endArrow=block;endFill=1;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1360" y="380" as="sourcePoint" />
+            <mxPoint x="1360" y="480" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Step 6: PostgreSQL -->
+        <mxCell id="step6-container" value="Step 6: Data Persistence" style="swimlane;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="800" y="480" width="320" height="280" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step6-db" value="PostgreSQL 15" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1" vertex="1" parent="step6-container">
+          <mxGeometry x="60" y="40" width="200" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step6-table" value="Table: logs_activitylog&#xa;&#xa;Fields:&#xa;• id, user_id, session_id&#xa;• recording_session_id&#xa;• event_type, package_name&#xa;• view_id, bounds&#xa;• content_description&#xa;• is_clickable, is_editable&#xa;• timestamp, created_at" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;" vertex="1" parent="step6-container">
+          <mxGeometry x="60" y="110" width="200" height="160" as="geometry" />
+        </mxCell>
+
+        <!-- Arrow 5 to 6 -->
+        <mxCell id="arrow5-6" value="INSERT INTO&#xa;(Batch inserts)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=3;strokeColor=#6c8ebf;endArrow=block;endFill=1;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1200" y="620" as="sourcePoint" />
+            <mxPoint x="1120" y="620" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Step 7: Optional M-GPT Analysis -->
+        <mxCell id="step7-container" value="Step 7: AI Analysis (Optional)" style="swimlane;whiteSpace=wrap;html=1;fillColor=#b1ddf0;strokeColor=#10739e;dashed=1;dashPattern=5 5;" vertex="1" parent="1">
+          <mxGeometry x="440" y="480" width="280" height="280" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step7-trigger" value="Trigger Conditions:&#xa;• Help request detected&#xa;• Recording analysis&#xa;• Anomaly detection" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;" vertex="1" parent="step7-container">
+          <mxGeometry x="40" y="40" width="200" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step7-mgpt" value="M-GPT Service&#xa;(OpenAI GPT API)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#b1ddf0;strokeColor=#10739e;fontStyle=1" vertex="1" parent="step7-container">
+          <mxGeometry x="40" y="110" width="200" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="step7-analysis" value="Analysis:&#xa;1. Fetch recent logs&#xa;2. Send to GPT API&#xa;3. Get insights:&#xa;   • User difficulty&#xa;   • Suggested help&#xa;   • Learning pattern&#xa;4. Store in MGptAnalysis" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;" vertex="1" parent="step7-container">
+          <mxGeometry x="40" y="160" width="200" height="110" as="geometry" />
+        </mxCell>
+
+        <!-- Arrow 6 to 7 -->
+        <mxCell id="arrow6-7" value="Query logs&#xa;(When triggered)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#10739e;endArrow=block;endFill=1;dashed=1;dashPattern=5 5;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="800" y="620" as="sourcePoint" />
+            <mxPoint x="720" y="620" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Performance Metrics -->
+        <mxCell id="metrics-container" value="Performance Metrics" style="swimlane;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="80" y="480" width="280" height="200" as="geometry" />
+        </mxCell>
+
+        <mxCell id="metrics-throughput" value="Throughput:&#xa;• 1000+ events/sec&#xa;• Batch size: 10-50 events" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;align=left;" vertex="1" parent="metrics-container">
+          <mxGeometry x="20" y="40" width="240" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="metrics-latency" value="Latency:&#xa;• API response: &lt;100ms&#xa;• End-to-end: ~1-2s" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;" vertex="1" parent="metrics-container">
+          <mxGeometry x="20" y="100" width="240" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="metrics-reliability" value="Reliability:&#xa;• At-least-once delivery&#xa;• Fallback to direct DB save" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;align=left;" vertex="1" parent="metrics-container">
+          <mxGeometry x="20" y="160" width="240" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- Notes -->
+        <mxCell id="note1" value="Why Kafka?&#xa;• Decouple logging from API&#xa;• Handle traffic spikes&#xa;• Enable real-time analytics&#xa;• Scale horizontally" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;fillColor=#fff2cc;strokeColor=#d6b656;size=15;" vertex="1" parent="1">
+          <mxGeometry x="80" y="780" width="200" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="note2" value="Fallback Strategy:&#xa;If Kafka is unavailable,&#xa;Producer saves directly&#xa;to PostgreSQL" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;fillColor=#f8cecc;strokeColor=#b85450;size=15;" vertex="1" parent="1">
+          <mxGeometry x="320" y="780" width="200" height="100" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

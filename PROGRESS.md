@@ -1,349 +1,466 @@
-# MobEdu 배포 준비 진행 상황
+# MobEdu 프로젝트 진행 상황 및 WBS
 
-**마지막 업데이트**: 2025-11-10
-**진행률**: 70% (9/13 단계)
+**최종 업데이트**: 2025-11-19
+**최종 기한**: 2025-12-12 (D-23일)
+**목표**: 완성된 프로토타입 (실제 시연 가능)
+**현재 진행률**: 75% (기반 인프라 완료)
 
 ---
 
-## ✅ 완료된 작업
+## 📊 프로젝트 개요
 
-### 1. Docker Compose 통합
-**파일**: `/Users/heemok/cps 2025-2/backend/docker-compose.yml`
+### 목표
+AI 기반 실시간 디지털 교육 도우미 시스템 - **시니어 사용자**를 위한 모바일 앱 사용 교육 서비스
+
+### 핵심 기능
+- ✅ 강사가 스마트폰에서 직접 시연한 동작 녹화
+- 🔄 AI가 녹화를 분석하여 단계별 가이드 자동 생성 (룰 기반 자동 변환)
+- ✅ 실시간 강의 세션에서 강사와 수강생 동시 연결
+- ✅ AccessibilityService를 통한 사용자 행동 감지 및 분석
+
+### 기술 스택
+- **Backend**: Django + PostgreSQL + Redis + Kafka + Celery
+- **Frontend**: React + TypeScript + Vite + Radix UI
+- **Android**: Kotlin + Jetpack Compose + Hilt
+- **Infrastructure**: Docker Compose (9개 서비스)
+- **Deployment**: AWS EC2 (예정)
+
+---
+
+## 🎯 WBS (Work Breakdown Structure)
+
+### Phase 1: 백엔드 완성 (11/19 - 11/24, 6일)
+
+| Task ID | 작업명 | 예상 시간 | 담당 | 상태 | 우선순위 |
+|---------|--------|----------|------|------|----------|
+| 1.1 | WebSocket 프론트엔드 연결 테스트 및 검증 | 4시간 | Backend | ⏳ Pending | High |
+| 1.2 | 추가 API 엔드포인트 개발 (녹화 처리 등) | 4시간 | Backend | ⏳ Pending | High |
+| 1.3 | Backend 테스트 코드 작성 (pytest) | 8시간 | Backend | ⏳ Pending | Medium |
+| 1.4 | API 문서화 (Swagger/Postman) | 2시간 | Backend | ⏳ Pending | Low |
+
+**마일스톤**: 📍 11/24 - 백엔드 API 완성
+
+---
+
+### Phase 2: 프론트엔드 완성 (11/25 - 11/30, 6일)
+
+| Task ID | 작업명 | 예상 시간 | 담당 | 상태 | 우선순위 |
+|---------|--------|----------|------|------|----------|
+| 2.1 | API 연결 완료 (lecture-service.ts Mock 제거) | 6시간 | Frontend | ⏳ Pending | High |
+| 2.2 | WebSocket 실시간 업데이트 구현 | 8시간 | Frontend | ⏳ Pending | High |
+| 2.3 | UI/UX 개선 및 버그 수정 | 6시간 | Frontend | ⏳ Pending | Medium |
+| 2.4 | 프론트엔드 테스트 (Vitest) | 4시간 | Frontend | ⏳ Pending | Low |
+
+**의존성**: Phase 1 완료 후 진행
+**마일스톤**: 📍 11/30 - 프론트엔드 완성
+
+---
+
+### Phase 3: Android 앱 완성 (12/1 - 12/5, 5일)
+
+| Task ID | 작업명 | 예상 시간 | 담당 | 상태 | 우선순위 |
+|---------|--------|----------|------|------|----------|
+| 3.1 | 로그인/회원가입 UI (Jetpack Compose) | 6시간 | Android | ⏳ Pending | High |
+| 3.2 | 세션 참가 화면 (6자리 코드 입력) | 8시간 | Android | ⏳ Pending | High |
+| 3.3 | 단계별 학습 진행 화면 + 가이드 표시 | 10시간 | Android | ⏳ Pending | High |
+| 3.4 | AccessibilityService 통합 테스트 | 4시간 | Android | ⏳ Pending | Medium |
+
+**의존성**: Phase 1-2 완료 후 진행
+**마일스톤**: 📍 12/5 - Android 앱 완성
+
+---
+
+### Phase 4: 녹화 자동 변환 기능 (12/3 - 12/5, 병행)
+
+| Task ID | 작업명 | 예상 시간 | 담당 | 상태 | 우선순위 |
+|---------|--------|----------|------|------|----------|
+| 4.1 | 이벤트 그룹핑 알고리즘 설계 | 3시간 | Backend | ⏳ Pending | High |
+| 4.2 | ActivityLog → Task/Subtask 변환 로직 구현 | 5시간 | Backend | ⏳ Pending | High |
+| 4.3 | 프론트엔드 UI 통합 (녹화 → 강의 생성) | 2시간 | Frontend | ⏳ Pending | Medium |
+| 4.4 | 테스트 및 검증 (샘플 녹화 데이터) | 2시간 | Full Stack | ⏳ Pending | Medium |
+
+**변환 로직 예시**:
+```python
+# 간단한 룰 기반 변환
+- 연속된 CLICK 이벤트 → 하나의 Subtask
+- SCROLL + CLICK → "항목 찾기 및 선택"
+- INPUT 이벤트 → "텍스트 입력" Subtask
+```
+
+**의존성**: Phase 1 완료 후 진행
+**마일스톤**: 📍 12/5 - 녹화 자동 변환 완성
+
+---
+
+### Phase 5: 통합 테스트 및 최적화 (12/6 - 12/8, 3일)
+
+| Task ID | 작업명 | 예상 시간 | 담당 | 상태 | 우선순위 |
+|---------|--------|----------|------|------|----------|
+| 5.1 | 전체 시스템 통합 테스트 (E2E) | 8시간 | Full Stack | ⏳ Pending | High |
+| 5.2 | 성능 최적화 (API 응답 속도, DB 쿼리) | 4시간 | Backend | ⏳ Pending | Medium |
+| 5.3 | 버그 수정 및 안정성 개선 | 6시간 | Full Stack | ⏳ Pending | High |
+| 5.4 | 샘플 데이터 준비 (강의 3개, 세션 시나리오) | 2시간 | Full Stack | ⏳ Pending | Medium |
+
+**테스트 시나리오**:
+1. 강사: 녹화 → 강의 생성 → 세션 시작
+2. 학생: 앱 설치 → 세션 참가 → 단계별 학습
+3. 실시간: WebSocket 동기화 확인
+
+**마일스톤**: 📍 12/8 - 통합 테스트 완료
+
+---
+
+### Phase 6: AWS 배포 (12/9 - 12/10, 2일)
+
+| Task ID | 작업명 | 예상 시간 | 담당 | 상태 | 우선순위 |
+|---------|--------|----------|------|------|----------|
+| 6.1 | EC2 인스턴스 생성 및 보안 그룹 설정 | 2시간 | DevOps | ⏳ Pending | High |
+| 6.2 | Docker Compose 배포 및 환경 변수 설정 | 3시간 | DevOps | ⏳ Pending | High |
+| 6.3 | 도메인 연결 및 HTTPS 설정 (Let's Encrypt) | 3시간 | DevOps | ⏳ Pending | Medium |
+| 6.4 | 배포 환경 테스트 및 모니터링 설정 | 2시간 | DevOps | ⏳ Pending | Medium |
+
+**인프라 스펙**:
+- EC2 인스턴스: t3.medium (2 vCPU, 4GB RAM)
+- 스토리지: 30GB SSD
+- 보안 그룹: 80, 443, 8000, 8001, 22
+
+**마일스톤**: 📍 12/10 - AWS 배포 완료
+
+---
+
+### Phase 7: 문서화 및 발표 준비 (12/11 - 12/12, 2일)
+
+| Task ID | 작업명 | 예상 시간 | 담당 | 상태 | 우선순위 |
+|---------|--------|----------|------|------|----------|
+| 7.1 | README 및 사용자 가이드 작성 | 3시간 | Documentation | ⏳ Pending | High |
+| 7.2 | 시연 시나리오 준비 (스크립트 작성) | 2시간 | Full Stack | ⏳ Pending | High |
+| 7.3 | 발표 자료 작성 (PPT/PDF) | 4시간 | Full Stack | ⏳ Pending | High |
+| 7.4 | 최종 리허설 및 버그 확인 | 2시간 | Full Stack | ⏳ Pending | High |
+
+**시연 시나리오**:
+1. 프로젝트 소개 (2분)
+2. 녹화 기능 시연 (3분)
+3. 강의 생성 및 세션 시작 (2분)
+4. Android 앱 실시간 학습 (3분)
+5. Q&A (5분)
+
+**마일스톤**: 🎯 12/12 - 최종 발표 준비 완료
+
+---
+
+## 📅 간트 차트 (주차별)
+
+```
+Week 1 (11/19-11/24): [████████░░] 백엔드 완성
+Week 2 (11/25-12/01): [░░████████] 프론트엔드 완성
+Week 3 (12/02-12/08): [████░░████] Android 앱 + 자동 변환 + 통합 테스트
+Week 4 (12/09-12/12): [██████░░░░] AWS 배포 + 문서화 + 발표 준비
+```
+
+### 일일 작업 시간 계획
+- **평일**: 4-5시간/일
+- **주말**: 8-10시간/일
+- **총 예상 작업 시간**: 약 110-120시간
+
+---
+
+## ✅ 이미 완료된 작업 (75%)
+
+### 1. Docker Compose 통합 (✅ 완료)
+**파일**: `backend/docker-compose.yml`
 
 **전체 서비스 구성 (9개)**:
-1. PostgreSQL (5432)
-2. Redis (6379)
-3. Zookeeper (2181)
-4. Kafka (9092)
-5. Django Backend/Gunicorn (8000)
-6. Daphne ASGI (8001)
-7. Celery Worker
-8. Celery Beat
-9. Kafka Consumer
+1. PostgreSQL (5432) - healthy
+2. Redis (6379) - healthy
+3. Zookeeper (2181) - running
+4. Kafka (9092) - healthy
+5. Django Backend/Gunicorn (8000) - healthy
+6. Daphne ASGI (8001) - healthy
+7. Celery Worker - running
+8. Celery Beat - running
+9. Kafka Consumer - running
 
 ---
 
-### 2. Kafka Consumer 구현
-**파일**: `/Users/heemok/cps 2025-2/backend/apps/logs/management/commands/run_kafka_consumer.py`
+### 2. Kafka Producer & Consumer (✅ 완료)
+**파일**:
+- `backend/apps/logs/kafka_producer.py`
+- `backend/apps/logs/management/commands/run_kafka_consumer.py`
 
-기능:
-- ✅ Activity Log 실시간 수신 및 저장
-- ✅ ActivityLog 모델에 저장
-- ✅ 로그 카운팅 및 모니터링
+**기능**:
+- ActivityLog 실시간 수신 및 저장
+- 비동기 메시지 전송
+- 배치 전송 지원
+- Kafka 실패 시 자동 DB fallback
 
-**실행 방법**:
-```bash
-python manage.py run_kafka_consumer
+---
+
+### 3. PostgreSQL 설정 (✅ 완료)
+**파일**: `backend/config/settings.py`
+
+- SQLite → PostgreSQL 전환
+- 환경변수 기반 DB 설정
+- Docker 환경 최적화
+
+---
+
+### 4. Health Check 시스템 (✅ 완료)
+**파일**: `backend/apps/health/`
+
+**엔드포인트**:
+- `/api/health/` - 기본 health check
+- `/api/health/detailed/` - DB/Cache 연결 상태
+
+---
+
+### 5. 세션 제어 API (✅ 완료)
+**파일**: `backend/apps/sessions/views.py`
+
+**테스트**: SESSION_CONTROL_TEST_REPORT.md (6/6 성공)
+
+**API**:
+```
+POST /api/sessions/{id}/start/       - 세션 시작
+POST /api/sessions/{id}/next-step/   - 다음 단계
+POST /api/sessions/{id}/pause/       - 일시정지
+POST /api/sessions/{id}/resume/      - 재개
+POST /api/sessions/{id}/end/         - 종료
 ```
 
-**참고**: AI 분석 기능은 현재 비활성화됨. ActivityLog만 저장합니다.
+---
+
+### 6. 녹화 기능 (✅ 완료)
+**파일**: `backend/apps/sessions/models.py` (RecordingSession)
+
+**API**:
+```
+POST /api/sessions/recordings/                          - 녹화 시작
+POST /api/sessions/recordings/{id}/save_events_batch/   - 이벤트 저장
+POST /api/sessions/recordings/{id}/stop/                - 녹화 종료
+GET  /api/sessions/recordings/                          - 녹화 목록
+```
 
 ---
 
-### 3. PostgreSQL 설정
-**파일**: `/Users/heemok/cps 2025-2/backend/config/settings.py`
+### 7. 백엔드-프론트엔드 연결 1차 (✅ 완료)
+**파일**:
+- `frontend/src/lib/api-service.ts`
+- `frontend/src/lib/lecture-service.ts`
 
-변경사항:
-- ✅ SQLite → PostgreSQL 전환 (line 77-96)
-- ✅ 환경변수 기반 DB 설정
-- ✅ Docker 환경에 맞게 HOST='db' 설정
+**완료**:
+- JWT 인증 통합
+- 강의 CRUD API 연결
+- 세션 API 연결
 
----
-
-### 4. 환경변수 설정
-**파일**: `/Users/heemok/cps 2025-2/backend/.env`
-
-업데이트:
-- ✅ DB_HOST=db (Docker용)
-- ✅ REDIS_HOST=redis
-- ✅ REDIS_URL=redis://redis:6379/0
-- ✅ KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+**미완료**:
+- WebSocket 실시간 업데이트 (Phase 2)
+- 녹화 처리 API 연결 (Phase 4)
 
 ---
 
-### 5. 패키지 추가
-**파일**: `/Users/heemok/cps 2025-2/backend/requirements.txt`
+### 8. Android 앱 구조 (✅ 완료)
+**파일**: `android-student/app/src/main/`
 
-추가:
-- ✅ kafka-python==2.0.2
+**완료**:
+- Clean Architecture 구조
+- Hilt DI 설정
+- REST API / WebSocket 인터페이스
+- AccessibilityService 구현
 
----
-
-### 6. Kafka Producer 구현
-**파일**: `/Users/heemok/cps 2025-2/backend/apps/logs/kafka_producer.py` (NEW)
-
-기능:
-- ✅ Singleton ActivityLogProducer 클래스
-- ✅ 비동기 메시지 전송 (async with callbacks)
-- ✅ 배치 전송 지원 (send_logs_batch)
-- ✅ Kafka 실패 시 자동 DB fallback
-- ✅ JSON 직렬화 처리 (ForeignKey → ID 변환)
-
-**통합 변경사항**:
-- `apps/logs/views.py`: Kafka Producer 통합, _prepare_kafka_data() 추가
-- `apps/logs/management/commands/run_kafka_consumer.py`: 누락 필드 추가
-
-**테스트 결과**:
-- ✅ 단일 로그 전송 성공 (202 ACCEPTED)
-- ✅ 배치 로그 전송 성공
-- ✅ ForeignKey 직렬화 문제 해결
-
-**상세 보고서**: `KAFKA_INTEGRATION_REPORT.md`
+**미완료**:
+- UI 화면 구현 (Phase 3)
+- ViewModel 및 상태 관리
 
 ---
 
-### 7. Health Check 시스템 구현
-**파일**: `/Users/heemok/cps 2025-2/backend/apps/health/` (NEW)
+## 🔄 현재 진행 중인 작업
 
-기능:
-- ✅ `/api/health/` - 기본 health check (인증 불필요)
-- ✅ `/api/health/detailed/` - DB/Cache 연결 상태 확인
-- ✅ Docker healthcheck 통합 (backend, daphne)
-
-**변경사항**:
-- `Dockerfile`: curl 설치 추가
-- `docker-compose.yml`: healthcheck URL 수정 (/admin/ → /api/health/)
-- `config/urls.py`: health check URL 라우팅 추가
-
-**결과**: 모든 컨테이너 healthy 상태 확인 ✅
+### WebSocket 실시간 동기화 (진행 중)
+- 백엔드: ✅ Consumer 완성 (`apps/sessions/consumers.py`)
+- 프론트엔드: ⏳ 클라이언트 연결 작업 중
 
 ---
 
-### 8. Celery 설정 완료
-**파일**: `/Users/heemok/cps 2025-2/backend/config/celery.py` (NEW)
+## ⚠️ 알려진 이슈 및 개선사항
 
-기능:
-- ✅ Celery app 초기화 및 설정
-- ✅ Redis 브로커 연결
-- ✅ Django settings 자동 로드
-- ✅ Task 자동 발견 (autodiscover_tasks)
+### 1. 녹화 → Task 자동 변환 미구현
+**현재 상태**: 수동으로 Task/Subtask 생성 필요
+**해결 방안**: Phase 4에서 룰 기반 자동 변환 구현
+**예상 시간**: 12시간
 
-**변경사항**:
-- `config/__init__.py`: celery_app import 추가
+### 2. Android 앱 UI 미완성
+**현재 상태**: 구조만 완성, 화면 없음
+**해결 방안**: Phase 3에서 Jetpack Compose UI 구현
+**예상 시간**: 28시간
 
-**결과**: Celery Worker & Beat 정상 실행 ✅
-
----
-
-### 9. Docker Compose 전체 테스트 완료
-**파일**: `/Users/heemok/cps 2025-2/backend/docker-compose.yml`
-
-**테스트 결과**:
-- ✅ 9개 서비스 모두 정상 실행
-- ✅ PostgreSQL (healthy)
-- ✅ Redis (healthy)
-- ✅ Zookeeper (running)
-- ✅ Kafka (healthy)
-- ✅ Django Backend (healthy)
-- ✅ Daphne ASGI (healthy)
-- ✅ Celery Worker (running)
-- ✅ Celery Beat (running)
-- ✅ Kafka Consumer (running)
-
-**주요 수정사항**:
-- Kafka ADVERTISED_LISTENERS 수정 (내부 통신용)
-- Kafka Consumer healthcheck 조건 추가
-- Health check URL 변경
-
-**상세 보고서**: `DOCKER_COMPOSE_TEST_REPORT.md`
+### 3. WebSocket 프론트엔드 연결 미완료
+**현재 상태**: 백엔드 완성, 프론트엔드 연결 중
+**해결 방안**: Phase 2에서 실시간 업데이트 구현
+**예상 시간**: 8시간
 
 ---
 
-## ⏳ 남은 작업 (4단계)
+## 🚨 리스크 관리
 
-### 10. Nginx 설정 및 프론트엔드 빌드 (선택사항, 30분)
-- [ ] 프론트엔드 프로덕션 빌드
-- [ ] Nginx Dockerfile 작성
-- [ ] nginx.conf 설정 (정적 파일 + API 프록시 + WebSocket)
-- [ ] docker-compose.yml에 Nginx 추가
+| 리스크 | 확률 | 영향도 | 완화 전략 | 버퍼 |
+|--------|------|--------|----------|------|
+| Android UI 복잡도 초과 | Medium | High | 간단한 UI로 우선 구현, 점진적 개선 | +2일 |
+| AWS 배포 이슈 | Low | Medium | Docker 로컬 테스트 철저히, 배포 문서 참고 | +1일 |
+| 통합 테스트 버그 | High | High | Phase별 단위 테스트 철저히, 버그 트래킹 | +1일 |
+| WebSocket 불안정 | Low | Medium | Reconnection 로직 추가, 에러 핸들링 강화 | +0.5일 |
+| 녹화 자동 변환 정확도 | Medium | Low | 룰 기반으로 단순화, 수동 수정 허용 | +0.5일 |
 
-**참고**: 현재 Backend(8000) + Daphne(8001) 직접 접근 가능. Nginx는 프로덕션 배포 시 추가 권장.
-
-### 11. 백엔드 테스트 작성 (1시간)
-- [ ] `tests/test_auth.py` - 인증 API
-- [ ] `tests/test_sessions.py` - 세션 관리
-- [ ] `tests/test_help.py` - 도움 요청
-- [ ] `tests/test_kafka_producer.py` - Kafka Producer
-- [ ] `tests/test_kafka_consumer.py` - Kafka Consumer
-- [ ] pytest 실행 및 커버리지 확인
-
-### 12. AWS EC2 배포 (1.5시간)
-- [ ] EC2 인스턴스 생성 (t3.small/medium)
-- [ ] 보안 그룹 설정 (SSH, HTTP, HTTPS)
-- [ ] Docker 설치
-- [ ] 코드 배포 (git clone)
-- [ ] .env.production 설정
-- [ ] docker-compose up -d
-- [ ] 도메인 연결 (선택)
-- [ ] HTTPS 설정 (선택)
-
-### 13. 배포 문서 작성 (30분)
-- [ ] DEPLOYMENT.md - 배포 가이드
-- [ ] USER_GUIDE.md - 사용자 매뉴얼
-- [ ] API 문서 (Swagger/Postman)
-- [ ] 발표 준비 체크리스트
+**총 버퍼**: 5일 (12/12 기한 내 충분히 대응 가능)
 
 ---
 
-## 🚀 빠른 재개 가이드
+## 📈 진행률 트래킹
 
-다음에 작업을 재개할 때:
+### 전체 진행률 (75%)
 
-### 1. 현재 상태 확인
+```
+인프라: [████████████████████] 95%
+백엔드 API: [██████████████████░░] 90%
+프론트엔드: [██████████████░░░░░░] 70%
+Android 앱: [██████░░░░░░░░░░░░░░] 30%
+테스트: [████████░░░░░░░░░░░░] 40%
+문서화: [█████████████████░░░] 85%
+배포: [░░░░░░░░░░░░░░░░░░░░] 0%
+```
+
+### Phase별 예상 완료율
+
+- Phase 1 완료 시: 80%
+- Phase 2 완료 시: 85%
+- Phase 3 완료 시: 92%
+- Phase 4 완료 시: 94%
+- Phase 5 완료 시: 97%
+- Phase 6 완료 시: 99%
+- Phase 7 완료 시: 100%
+
+---
+
+## 🎯 핵심 성공 지표 (KPI)
+
+### 기술적 지표
+- [ ] 모든 백엔드 API 테스트 통과 (pytest coverage > 70%)
+- [ ] 프론트엔드-백엔드 API 연결 100%
+- [ ] WebSocket 실시간 동기화 지연 < 500ms
+- [ ] Android 앱 빌드 성공 및 실행 가능
+- [ ] AWS 배포 후 서비스 정상 동작 (Uptime > 99%)
+
+### 기능적 지표
+- [ ] 녹화 → 강의 생성 → 세션 시작 → 학생 참가 플로우 완성
+- [ ] 실시간 세션에서 최소 2명 동시 접속 가능
+- [ ] 녹화 자동 변환 성공률 > 80%
+- [ ] 시연 시나리오 3회 연속 성공
+
+---
+
+## 🔗 주요 파일 및 위치
+
+### Backend
+```
+/Users/heemok/cps 2025-2/backend/
+├── apps/lectures/views.py              # 강의 API
+├── apps/sessions/models.py             # RecordingSession, LectureSession
+├── apps/sessions/views.py              # 세션 제어 API
+├── apps/sessions/consumers.py          # WebSocket Consumer
+├── apps/tasks/models.py                # Task, Subtask
+├── apps/logs/kafka_producer.py         # Kafka Producer
+├── config/settings.py                  # Django 설정
+└── docker-compose.yml                  # 전체 인프라
+```
+
+### Frontend
+```
+/Users/heemok/cps 2025-2/frontend/src/
+├── pages/lecture-form-page.tsx         # 강의 생성
+├── pages/session-control-page.tsx      # 세션 제어
+├── lib/lecture-service.ts              # 강의 서비스
+├── lib/websocket-client.ts             # WebSocket 클라이언트
+└── lib/api-client.ts                   # Axios 클라이언트
+```
+
+### Android
+```
+/Users/heemok/cps 2025-2/android-student/app/src/main/
+├── java/com/mobilegpt/student/
+│   ├── data/api/                       # REST API & WebSocket
+│   ├── domain/model/                   # 도메인 모델
+│   ├── presentation/ui/                # Jetpack Compose UI (미완성)
+│   └── service/MobileGPTAccessibilityService.kt
+└── AndroidManifest.xml
+```
+
+### Test Reports
+```
+/Users/heemok/cps 2025-2/test-reports/
+├── SESSION_CONTROL_TEST_REPORT.md      # 세션 제어 테스트
+├── RECORDING_TO_TASK_INTEGRATION_ANALYSIS.md  # 통합 분석
+└── test-session-control.sh             # 자동화 스크립트
+```
+
+---
+
+## 📚 참고 문서
+
+### 내부 문서
+- `README.md` - 프로젝트 개요
+- `plan.md` - 기획 문서
+- `test-reports/` - 테스트 보고서
+
+### 외부 문서
+- [Django Channels](https://channels.readthedocs.io/)
+- [Docker Compose](https://docs.docker.com/compose/)
+- [Apache Kafka](https://kafka.apache.org/documentation/)
+- [Jetpack Compose](https://developer.android.com/jetpack/compose)
+
+---
+
+## 💡 빠른 시작 가이드
+
+### 개발 환경 실행
 ```bash
+# 1. 백엔드 실행
 cd /Users/heemok/cps\ 2025-2/backend
-git status
-```
-
-### 2. 로컬 테스트 (선택)
-```bash
-# Docker 없이 로컬 테스트
-python manage.py runserver
-
-# 또는 Docker Compose로 전체 시스템 테스트
 docker-compose up --build
+
+# 2. 프론트엔드 실행
+cd /Users/heemok/cps\ 2025-2/frontend
+npm run dev
+
+# 3. Android 앱 실행
+cd /Users/heemok/cps\ 2025-2/android-student
+./gradlew installDebug
 ```
 
-### 3. 다음 작업 시작
-- 6단계: Nginx 설정부터 시작
-- 또는 8단계: 먼저 로컬에서 테스트
-
----
-
-## 📝 주요 파일 및 위치
-
-```
-/Users/heemok/cps 2025-2/
-├── backend/
-│   ├── docker-compose.yml          ✅ 수정됨 (9개 서비스)
-│   ├── config/
-│   │   ├── settings.py             ✅ PostgreSQL 설정, OPENAI 제거
-│   │   └── asgi.py                 (기존)
-│   ├── apps/logs/management/commands/
-│   │   └── run_kafka_consumer.py   ✅ 단순화 (ActivityLog만 저장)
-│   ├── requirements.txt            ✅ kafka-python 추가
-│   └── .env                        ✅ Docker 환경 설정
-├── frontend-teacher/               (수정 안함)
-├── android-student/                (수정 안함)
-└── MobileGPT-main/                 ✅ 원본 코드 분석 완료
-```
-
----
-
-## 🎯 핵심 아키텍처
-
-```
-[Android 학생 앱]
-     ↓ POST /api/logs/activity/
-[Django Backend API (Gunicorn:8000)]
-     ↓ ActivityLogCreateView
-     ↓ _prepare_kafka_data() (ForeignKey → ID)
-     ↓
-[ActivityLogProducer (Singleton)]
-     ↓ send_log() / send_logs_batch()
-     ↓ async with callbacks
-     ↓
-[Kafka Broker (kafka:9092)]
-     ↓ Topic: activity-logs
-     ↓ Partition: 1 (round-robin)
-     ↓
-[Kafka Consumer (Management Command)]
-     ↓ poll messages
-     ↓ process_log()
-     ↓
-[PostgreSQL Database]
-     ↓ ActivityLog 모델 저장
-     ↓
-[강사 대시보드 (React)]
-     ↑↓ WebSocket (Daphne:8001)
-[실시간 업데이트]
-
-Fallback: Kafka 실패 시 → 직접 DB 저장 (202 → 201)
-참고: AI 분석 기능은 현재 비활성화
-```
-
----
-
-## 💡 다음 작업 시 참고사항
-
-1. **테스트 우선 추천**: Docker Compose로 로컬 테스트 먼저 수행
-2. **AI 분석 기능**: 현재 비활성화됨. 필요 시 재설계 필요
-3. **포트 충돌**: 로컬에서 PostgreSQL(5432), Redis(6379) 등이 이미 실행 중이면 충돌 가능
-4. **Kafka 초기화**: Kafka는 첫 실행 시 토픽 자동 생성되므로 시간 소요
-5. **MobileGPT 원본**: `/MobileGPT-main/` 폴더에 원본 코드 있음 (참고용)
-
----
-
-## 🔗 유용한 명령어
-
-### Docker Compose 관리
+### 주요 명령어
 ```bash
-# 전체 빌드 및 실행
-docker-compose up --build -d
-
-# 로그 확인
+# Docker 로그 확인
 docker-compose logs -f [service-name]
 
-# 특정 서비스만 재시작
-docker-compose restart [service-name]
-
-# 모두 중지 및 삭제
-docker-compose down -v
-
-# 서비스 상태 확인
-docker-compose ps
-```
-
-### Django 관리
-```bash
-# 마이그레이션
+# Django 마이그레이션
 docker-compose exec backend python manage.py migrate
 
 # 슈퍼유저 생성
 docker-compose exec backend python manage.py createsuperuser
 
-# Kafka Consumer 실행
-docker-compose exec kafka_consumer python manage.py run_kafka_consumer
-```
-
-### 테스트
-```bash
-# 백엔드 테스트
+# 테스트 실행
 docker-compose exec backend pytest --cov=apps
-
-# Kafka Consumer 로그 확인
-docker-compose logs -f kafka_consumer
 ```
 
 ---
 
-## 예상 일정
-
-- **이미 완료**: 4-5시간 (70%)
-- **남은 작업**: 2-3시간 (30%)
-  - 백엔드 테스트: 1시간
-  - AWS EC2 배포: 1.5시간
-  - 문서 작성: 30분
-  - Nginx 설정: 선택사항
-- **총 예상**: 6-8시간
-- **버퍼**: +1시간 (예상치 못한 문제)
-
-**현재 상태**: 로컬 환경 완전 구축 완료, 배포 준비 완료
-
-**발표 전까지 여유 있게 진행 권장!**
-
----
-
-## 연락처 / 도움말
-
-- Django Channels: https://channels.readthedocs.io/
-- Docker Compose: https://docs.docker.com/compose/
-- Apache Kafka: https://kafka.apache.org/documentation/
-- MobileGPT 원본 (참고용): https://github.com/mobilegptsys/MobileGPT
-
----
+## 📞 연락 및 지원
 
 **작성자**: Claude Code
-**최종 업데이트**: 2025-11-10
-**프로젝트**: MobEdu (학교 과제용)
-**변경사항**: MobileGPT AI 분석 기능 제거, 기본 인프라만 유지
+**프로젝트**: MobEdu (시니어 디지털 교육 서비스)
+**최종 기한**: 2025년 12월 12일
+**목표**: 완성된 프로토타입 (실제 시연 가능)
+
+---
+
+**다음 작업**: Phase 1 (백엔드 완성) - WebSocket 프론트엔드 연결부터 시작
+**예상 소요 시간**: 4시간
+**시작일**: 2025-11-19

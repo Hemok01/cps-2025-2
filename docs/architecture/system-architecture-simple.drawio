@@ -1,0 +1,79 @@
+<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36" version="29.0.3">
+  <diagram name="시스템 구조 (간략)" id="system-architecture-simple">
+    <mxGraphModel dx="1062" dy="683" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="800" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" value="MobEdu 시스템 구조" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=24;fontStyle=1" parent="1" vertex="1">
+          <mxGeometry x="400" y="20" width="400" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="frontend" value="강사용 웹&#xa;React + TypeScript" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;fontStyle=1" parent="1" vertex="1">
+          <mxGeometry x="80" y="120" width="200" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="android" value="학생용 앱&#xa;Android + Kotlin" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=14;fontStyle=1" parent="1" vertex="1">
+          <mxGeometry x="80" y="280" width="200" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="android-note" value="사용자 행동 감지&#xa;(AccessibilityService)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="100" y="370" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="backend" value="백엔드 서버&#xa;Django + WebSocket" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=14;fontStyle=1" parent="1" vertex="1">
+          <mxGeometry x="440" y="120" width="280" height="260" as="geometry" />
+        </mxCell>
+        <mxCell id="backend-apps" value="핵심 모듈&#xa;강의 | 세션 | 진도 | 로그 | 도움요청" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="460" y="140" width="240" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="backend-ws" value="실시간 통신&#xa;WebSocket (Channels)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="460" y="270" width="240" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="backend-kafka" value="이벤트 처리&#xa;Kafka" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="460" y="320" width="240" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="database" value="데이터베이스&#xa;PostgreSQL" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;fontStyle=1" parent="1" vertex="1">
+          <mxGeometry x="840" y="120" width="200" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="cache" value="캐시&#xa;Redis" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=14;fontStyle=1" parent="1" vertex="1">
+          <mxGeometry x="840" y="250" width="200" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="ai" value="AI 분석 (예정)&#xa;OpenAI GPT" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#b1ddf0;strokeColor=#10739e;fontSize=14;fontStyle=1;dashed=1;dashPattern=5 5;" parent="1" vertex="1">
+          <mxGeometry x="440" y="480" width="280" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="ai-note" value="녹화 분석, 과제 자동 생성, 맞춤형 힌트" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="440" y="525" width="280" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="conn-frontend-backend" value="API + WebSocket" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=3;strokeColor=#6c8ebf;fontSize=12;" parent="1" source="frontend" target="backend" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="conn-android-backend" value="API + WebSocket" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=3;strokeColor=#82b366;fontSize=12;" parent="1" source="android" target="backend" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="conn-backend-db" value="데이터 저장" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#6c8ebf;fontSize=11;" parent="1" source="backend" target="database" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="conn-backend-cache" value="실시간 동기화" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#d79b00;fontSize=11;" parent="1" source="backend" target="cache" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="conn-backend-ai" value="분석 요청" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#10739e;fontSize=11;dashed=1;dashPattern=5 5;" parent="1" source="backend" target="ai" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="features-container" value="주요 기능" style="swimlane;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=14;fontStyle=1" parent="1" vertex="1">
+          <mxGeometry x="80" y="480" width="280" height="240" as="geometry" />
+        </mxCell>
+        <mxCell id="feature1" value="1. 강사 시연 녹화" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;align=left;" parent="features-container" vertex="1">
+          <mxGeometry x="20" y="40" width="240" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="feature2" value="2. AI 단계별 가이드 생성" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;align=left;" parent="features-container" vertex="1">
+          <mxGeometry x="20" y="85" width="240" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="feature3" value="3. 실시간 강의 세션" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;align=left;" parent="features-container" vertex="1">
+          <mxGeometry x="20" y="130" width="240" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="feature4" value="4. 학습 진도 추적" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;align=left;" parent="features-container" vertex="1">
+          <mxGeometry x="20" y="175" width="240" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="infra-note" value="인프라: Docker Compose (9개 컨테이너)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=12;fontStyle=1" parent="1" vertex="1">
+          <mxGeometry x="840" y="480" width="200" height="60" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
