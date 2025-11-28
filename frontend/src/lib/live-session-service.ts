@@ -266,6 +266,10 @@ export const liveSessionService = {
         isLoading: false,
       };
     } catch (error: any) {
+      // 401은 인터셉터에서 처리하도록 re-throw (토큰 갱신 또는 로그인 리다이렉트)
+      if (error.response?.status === 401) {
+        throw error;
+      }
       // 404는 스크린샷이 아직 없는 경우 (정상)
       if (error.response?.status === 404) {
         return {
@@ -301,7 +305,11 @@ export const liveSessionService = {
         lastUpdated: data.captured_at || new Date().toISOString(),
         isLoading: false,
       };
-    } catch (error) {
+    } catch (error: any) {
+      // 401은 인터셉터에서 처리하도록 re-throw
+      if (error.response?.status === 401) {
+        throw error;
+      }
       console.error('Failed to fetch student screen by device ID:', error);
       return {
         studentId: 0,
@@ -327,7 +335,11 @@ export const liveSessionService = {
         isLoading: false,
         deviceId: screenshot.device_id,
       }));
-    } catch (error) {
+    } catch (error: any) {
+      // 401은 인터셉터에서 처리하도록 re-throw
+      if (error.response?.status === 401) {
+        throw error;
+      }
       console.error('Failed to fetch all student screenshots:', error);
       return [];
     }

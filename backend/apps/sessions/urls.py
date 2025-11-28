@@ -43,8 +43,10 @@ urlpatterns = [
     # Instructor active sessions - Must come before <str:session_code> pattern!
     path('instructor-active/', InstructorActiveSessionView.as_view(), name='instructor-active-sessions'),
 
-    # Session management
-    path('<str:session_code>/', SessionByCodeView.as_view(), name='session-by-code'),
+    # Student endpoints - Must come before <str:session_code> pattern!
+    path('my-active/', MyActiveSessionView.as_view(), name='my-active-session'),
+
+    # Session management by ID (more specific patterns first)
     path('<int:session_id>/join/', SessionJoinView.as_view(), name='session-join'),
     path('<int:session_id>/participants/', SessionParticipantsView.as_view(), name='session-participants'),
     path('<int:session_id>/start/', SessionStartView.as_view(), name='session-start'),
@@ -62,6 +64,7 @@ urlpatterns = [
     path('<int:session_id>/screenshots/<int:participant_id>/', StudentScreenshotDetailView.as_view(), name='student-screenshot'),
     path('<int:session_id>/screenshots/by-device/<str:device_id>/', StudentScreenshotByDeviceView.as_view(), name='student-screenshot-by-device'),
 
-    # Student endpoints
-    path('my-active/', MyActiveSessionView.as_view(), name='my-active-session'),
+    # Session by code (most generic pattern - MUST be last!)
+    # <str:session_code> matches any string, so it must come after all specific patterns
+    path('<str:session_code>/', SessionByCodeView.as_view(), name='session-by-code'),
 ]

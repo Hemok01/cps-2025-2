@@ -84,7 +84,7 @@ export function CenterArea({
           />
         </CardHeader>
 
-        <CardContent className="flex-1 flex items-center justify-center p-8">
+        <CardContent className="flex-1 flex items-center justify-center p-4 overflow-hidden min-h-0">
           <ScreenDisplay
             studentScreen={studentScreen}
             viewMode={viewMode}
@@ -215,14 +215,18 @@ interface ScreenDisplayProps {
 
 function ScreenDisplay({ studentScreen, viewMode, zoomLevel, onRefresh }: ScreenDisplayProps) {
   if (viewMode === VIEW_MODES.SINGLE) {
-    return <StudentScreenRenderer screen={studentScreen} zoomLevel={zoomLevel} onRefresh={onRefresh} />;
+    return (
+      <div className="h-full w-full flex items-center justify-center">
+        <StudentScreenRenderer screen={studentScreen} zoomLevel={zoomLevel} onRefresh={onRefresh} />
+      </div>
+    );
   }
 
   const gridCols = viewMode === VIEW_MODES.GRID_2 ? 2 : 2;
   const placeholderCount = viewMode === VIEW_MODES.GRID_2 ? 1 : 3;
 
   return (
-    <div className={`grid grid-cols-${gridCols} gap-6 w-full max-w-4xl`}>
+    <div className={`grid grid-cols-${gridCols} gap-6 w-full max-w-4xl h-full`}>
       <StudentScreenRenderer screen={studentScreen} zoomLevel={100} onRefresh={onRefresh} viewMode={viewMode} />
       {Array.from({ length: placeholderCount }, (_, i) => (
         <PlaceholderScreen key={i} index={i + 1} isGrid2={viewMode === VIEW_MODES.GRID_2} />
@@ -240,7 +244,8 @@ interface StudentScreenRendererProps {
 
 function StudentScreenRenderer({ screen, zoomLevel, onRefresh, viewMode = VIEW_MODES.SINGLE }: StudentScreenRendererProps) {
   const isSingleView = viewMode === VIEW_MODES.SINGLE;
-  const maxWidth = isSingleView ? '480px' : '280px';
+  const maxWidth = isSingleView ? '360px' : '240px';
+  const maxHeight = isSingleView ? 'calc(100vh - 320px)' : '300px';
 
   if (!screen) {
     return <EmptyScreenPlaceholder />;
@@ -256,29 +261,43 @@ function StudentScreenRenderer({ screen, zoomLevel, onRefresh, viewMode = VIEW_M
 
   if (screen.imageUrl) {
     return (
-      <div className="relative flex flex-col items-center">
-        <div className="mb-2">
+      <div className="relative flex flex-col items-center h-full">
+        <div className="mb-2 flex-shrink-0">
           <Badge variant="outline" className="mb-1">{screen.studentName}</Badge>
         </div>
         <div
-          className="rounded-2xl overflow-hidden"
+          className="flex-1 flex items-center justify-center overflow-hidden"
           style={{
-            border: '2px solid var(--border)',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-            maxWidth,
-            aspectRatio: '9/16',
-            transform: `scale(${zoomLevel / 100})`,
-            transition: 'transform 0.2s',
+            maxWidth: '100%',
+            maxHeight,
           }}
         >
-          <img
-            src={screen.imageUrl}
-            alt={`${screen.studentName}의 화면`}
-            className="w-full h-full object-cover"
-          />
+          <div
+            className="rounded-2xl overflow-hidden"
+            style={{
+              border: '2px solid var(--border)',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              maxWidth,
+              maxHeight: '100%',
+              transform: `scale(${zoomLevel / 100})`,
+              transformOrigin: 'center center',
+              transition: 'transform 0.2s',
+            }}
+          >
+            <img
+              src={screen.imageUrl}
+              alt={`${screen.studentName}의 화면`}
+              style={{
+                maxWidth: '100%',
+                maxHeight,
+                objectFit: 'contain',
+                display: 'block',
+              }}
+            />
+          </div>
         </div>
         {isSingleView && (
-          <div className="mt-4 text-center text-sm" style={{ color: 'var(--text-secondary)' }}>
+          <div className="mt-2 text-center text-sm flex-shrink-0" style={{ color: 'var(--text-secondary)' }}>
             마지막 업데이트: {new Date(screen.lastUpdated).toLocaleTimeString('ko-KR')}
           </div>
         )}
