@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Test - Mobile GPT</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .panel {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            grid-column: 1 / -1;
+            margin-bottom: 20px;
+        }
+        h2 {
+            margin-top: 0;
+            color: #333;
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 10px;
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        .status.connected { background: #4CAF50; color: white; }
+        .status.connecting { background: #FFC107; color: white; }
+        .status.disconnected { background: #f44336; color: white; }
+        input, button {
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background: #2196F3;
+            color: white;
+            cursor: pointer;
+            border: none;
+        }
+        button:hover { background: #1976D2; }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .log {
+            background: #f9f9f9;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            padding: 10px;
+            height: 300px;
+            overflow-y: auto;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 12px;
+        }
+        .log-entry {
+            padding: 4px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .log-entry.sent { color: #2196F3; }
+        .log-entry.received { color: #4CAF50; }
+        .log-entry.error { color: #f44336; }
+        .controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🚀 WebSocket Test - Mobile GPT</h1>
+
+    <div class="container">
+        <div class="panel" style="grid-column: 1 / -1;">
+            <h2>연결 설정</h2>
+            <div style="display: grid; grid-template-columns: 1fr auto; gap: 10px;">
+                <input type="text" id="sessionCode" placeholder="세션 코드 입력 (예: 8UFN76)" value="8UFN76">
+                <div>
+                    <button id="connectBtn" onclick="connect()">연결</button>
+                    <span id="status" class="status disconnected">끊김</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h2>강사 명령</h2>
+            <button onclick="sendCommand('next_step')" disabled>➡️ 다음 단계</button>
+            <button onclick="sendCommand('pause_session')" disabled>⏸️ 일시정지</button>
+            <button onclick="sendCommand('resume_session')" disabled>▶️ 재개</button>
+            <button onclick="sendCommand('end_session')" disabled>⏹️ 종료</button>
+        </div>
+
+        <div class="panel">
+            <h2>학생 메시지</h2>
+            <button onclick="sendCommand('join')" disabled>🙋 참가</button>
+            <button onclick="sendCommand('heartbeat')" disabled>💓 Heartbeat</button>
+            <button onclick="sendStepComplete()" disabled>✅ 단계 완료</button>
+            <button onclick="sendHelpRequest()" disabled>🆘 도움 요청</button>
+        </div>
+
+        <div class="panel" style="grid-column: 1 / -1;">
+            <h2>메시지 로그</h2>
+            <div id="log" class="log"></div>
+            <div style="margin-top: 10px;">
+                <button onclick="clearLog()">로그 지우기</button>
+                <button onclick="testAllFeatures()" id="testAllBtn">🧪 전체 기능 테스트</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        let sessionCode = '';
+
+        function updateStatus(status) {
+            const statusEl = document.getElementById('status');
+            statusEl.className = 'status ' + status;
+            statusEl.textContent = status === 'connected' ? '연결됨' :
+                                   status === 'connecting' ? '연결 중...' : '끊김';
+
+            // Enable/disable buttons
+            const buttons = document.querySelectorAll('button:not(#connectBtn):not(#testAllBtn)');
+            buttons.forEach(btn => {
+                btn.disabled = status !== 'connected';
+            });
+        }
+
+        function addLog(message, type = 'info') {
+            const log = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry ' + type;
+            const time = new Date().toLocaleTimeString();
+            entry.textContent = `[${time}] ${message}`;
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function connect() {
+            sessionCode = document.getElementById('sessionCode').value;
+            if (!sessionCode) {
+                alert('세션 코드를 입력하세요');
+                return;
+            }
+
+            if (ws) {
+                ws.close();
+            }
+
+            updateStatus('connecting');
+            const wsUrl = `ws://localhost:8000/ws/sessions/${sessionCode}/`;
+            addLog(`연결 시도: ${wsUrl}`, 'info');
+
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                updateStatus('connected');
+                addLog('✅ WebSocket 연결 성공!', 'received');
+
+                // Auto-send join message
+                setTimeout(() => {
+                    sendCommand('join');
+                }, 500);
+            };
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                addLog(`📨 수신: ${JSON.stringify(data, null, 2)}`, 'received');
+
+                // Handle different message types
+                if (data.type === 'step_changed') {
+                    addLog(`📍 단계 변경: ${data.data.current_step}/${data.data.total_steps}`, 'info');
+                } else if (data.type === 'participant_joined') {
+                    addLog(`👋 ${data.data.username}님이 입장했습니다`, 'info');
+                } else if (data.type === 'error') {
+                    addLog(`❌ 오류: ${data.data.message}`, 'error');
+                }
+            };
+
+            ws.onerror = (error) => {
+                addLog(`❌ 오류: ${error}`, 'error');
+                updateStatus('disconnected');
+            };
+
+            ws.onclose = () => {
+                addLog('🔌 연결이 끊어졌습니다', 'error');
+                updateStatus('disconnected');
+            };
+        }
+
+        function sendCommand(type, data = {}) {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                addLog('❌ WebSocket이 연결되지 않았습니다', 'error');
+                return;
+            }
+
+            const message = { type, data };
+            ws.send(JSON.stringify(message));
+            addLog(`📤 전송: ${JSON.stringify(message)}`, 'sent');
+        }
+
+        function sendStepComplete() {
+            const subtaskId = prompt('Subtask ID를 입력하세요:', '1');
+            if (subtaskId) {
+                sendCommand('step_complete', { subtask_id: parseInt(subtaskId) });
+            }
+        }
+
+        function sendHelpRequest() {
+            const message = prompt('도움 요청 메시지를 입력하세요:', '이 부분이 이해가 안 됩니다');
+            if (message) {
+                sendCommand('request_help', { message });
+            }
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+
+        function testAllFeatures() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                alert('먼저 WebSocket에 연결하세요');
+                return;
+            }
+
+            addLog('🧪 전체 기능 테스트 시작...', 'info');
+
+            const commands = [
+                { type: 'join', data: {}, delay: 500 },
+                { type: 'heartbeat', data: {}, delay: 1000 },
+                { type: 'next_step', data: {}, delay: 1500 },
+                { type: 'pause_session', data: {}, delay: 2000 },
+                { type: 'resume_session', data: {}, delay: 2500 },
+                { type: 'step_complete', data: { subtask_id: 1 }, delay: 3000 },
+                { type: 'request_help', data: { message: '테스트 도움 요청' }, delay: 3500 }
+            ];
+
+            commands.forEach(cmd => {
+                setTimeout(() => {
+                    sendCommand(cmd.type, cmd.data);
+                }, cmd.delay);
+            });
+
+            setTimeout(() => {
+                addLog('🎉 전체 기능 테스트 완료!', 'info');
+            }, 4000);
+        }
+
+        // Auto-connect if session code is pre-filled
+        window.onload = () => {
+            const code = document.getElementById('sessionCode').value;
+            if (code) {
+                addLog('💡 세션 코드가 있습니다. "연결" 버튼을 클릭하세요', 'info');
+            }
+        };
+    </script>
+</body>
+</html>

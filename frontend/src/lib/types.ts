@@ -36,6 +36,7 @@ export interface Session {
   id: number;
   title: string;
   code: string;
+  session_code?: string; // Alias for compatibility
   status: SessionStatus;
   createdAt: string;
   startedAt?: string;
@@ -43,6 +44,7 @@ export interface Session {
   currentStep?: string;
   lectures: SessionLecture[]; // Multiple lectures in one session
   activeLectureId?: number; // Currently active lecture
+  participantCount?: number; // Number of participants in the session
 }
 
 export interface Participant {

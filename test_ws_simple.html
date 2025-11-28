@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Simple WebSocket Test</title>
+    <style>
+        body { font-family: monospace; padding: 20px; }
+        #log { background: #000; color: #0f0; padding: 10px; height: 400px; overflow-y: auto; }
+        button { margin: 5px; padding: 10px; }
+    </style>
+</head>
+<body>
+    <h1>WebSocket Test - Mobile GPT</h1>
+    <div>
+        <button onclick="testConnection()">Test WebSocket Connection</button>
+        <button onclick="clearLog()">Clear Log</button>
+    </div>
+    <div id="log"></div>
+
+    <script>
+        function log(message) {
+            const logDiv = document.getElementById('log');
+            const time = new Date().toLocaleTimeString();
+            logDiv.innerHTML += `[${time}] ${message}<br>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function testConnection() {
+            log('====== Starting WebSocket Test ======');
+
+            // Test different session codes
+            const testCodes = ['TEST123', 'ABC123', '8UFN76'];
+
+            testCodes.forEach((code, index) => {
+                setTimeout(() => {
+                    log(`\nTesting session code: ${code}`);
+                    const ws = new WebSocket(`ws://localhost:8000/ws/sessions/${code}/`);
+
+                    ws.onopen = () => {
+                        log(`✅ Connected to ${code}!`);
+                        ws.send(JSON.stringify({type: 'join', data: {}}));
+                        log(`📤 Sent join message`);
+
+                        setTimeout(() => {
+                            ws.close();
+                            log(`🔌 Closed connection to ${code}`);
+                        }, 2000);
+                    };
+
+                    ws.onmessage = (event) => {
+                        log(`📨 Received from ${code}: ${event.data}`);
+                    };
+
+                    ws.onerror = (error) => {
+                        log(`❌ Error with ${code}: Connection failed`);
+                    };
+
+                    ws.onclose = (event) => {
+                        if (event.code !== 1000) {
+                            log(`⚠️ ${code} closed with code ${event.code}: ${event.reason || 'No reason'}`);
+                        }
+                    };
+                }, index * 3000);
+            });
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+
+        // Auto test on load
+        window.onload = () => {
+            log('WebSocket Test Page Loaded');
+            log('Server: ws://localhost:8000/ws/sessions/{code}/');
+            log('Click "Test WebSocket Connection" to start');
+        };
+    </script>
+</body>
+</html>

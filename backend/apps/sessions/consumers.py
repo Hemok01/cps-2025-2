@@ -37,66 +37,104 @@ class SessionConsumer(AsyncWebsocketConsumer):
 
     async def connect(self):
         """Handle WebSocket connection"""
-        self.session_code = self.scope['url_route']['kwargs']['session_code']
-        self.session_group_name = f'session_{self.session_code}'
-        self.user = self.scope['user']
+        import logging
+        from django.conf import settings
+        logger = logging.getLogger(__name__)
 
-        # Check if user is authenticated
-        if not self.user.is_authenticated:
+        try:
+            self.session_code = self.scope['url_route']['kwargs']['session_code']
+            self.session_group_name = f'session_{self.session_code}'
+            self.user = self.scope.get('user')
+
+            logger.info(f"WebSocket connection attempt - Session: {self.session_code}, User: {self.user}")
+
+            # JWT 미들웨어가 이미 인증을 처리함
+            # 인증된 사용자 또는 AnonymousUser가 scope['user']에 설정됨
+            is_authenticated = (
+                self.user and
+                hasattr(self.user, 'is_authenticated') and
+                self.user.is_authenticated
+            )
+
+            if is_authenticated:
+                # 인증된 사용자: 세션 및 접근 권한 확인
+                logger.info(f"Authenticated user: {self.user.id} ({getattr(self.user, 'name', 'N/A')})")
+
+                # Verify session exists
+                session = await self.get_session()
+                if not session:
+                    logger.warning(f"Session not found: {self.session_code}")
+                    await self.close()
+                    return
+
+                # Check if user is instructor or enrolled participant
+                is_valid = await self.check_user_access(session)
+                if not is_valid:
+                    logger.warning(f"User {self.user.id} does not have access to session {self.session_code}")
+                    await self.close()
+                    return
+            else:
+                # 익명 사용자: DEBUG 모드에서만 허용
+                if getattr(settings, 'DEBUG', False):
+                    logger.info("Anonymous user allowed in DEBUG mode")
+                    self.user = await self.get_anonymous_user()
+                    if not self.user:
+                        logger.error("Failed to create anonymous user")
+                        await self.close()
+                        return
+                else:
+                    # 프로덕션 모드에서는 인증 필수
+                    logger.warning("Anonymous connection rejected in production mode")
+                    await self.close()
+                    return
+
+            # Join session group
+            await self.channel_layer.group_add(
+                self.session_group_name,
+                self.channel_name
+            )
+
+            await self.accept()
+
+            # Notify others that user joined
+            await self.channel_layer.group_send(
+                self.session_group_name,
+                {
+                    'type': 'participant_joined',
+                    'user_id': getattr(self.user, 'id', 0),
+                    'user_name': getattr(self.user, 'name', 'Anonymous'),
+                    'role': getattr(self.user, 'role', 'student')
+                }
+            )
+
+            logger.info(f"WebSocket connected successfully - Session: {self.session_code}, User: {getattr(self.user, 'id', 'anon')}")
+
+        except Exception as e:
+            logger.error(f"WebSocket connection failed - Error: {e}")
             await self.close()
-            return
-
-        # Verify session exists and user is participant or instructor
-        session = await self.get_session()
-        if not session:
-            await self.close()
-            return
-
-        # Check if user is instructor or enrolled participant
-        is_valid = await self.check_user_access(session)
-        if not is_valid:
-            await self.close()
-            return
-
-        # Join session group
-        await self.channel_layer.group_add(
-            self.session_group_name,
-            self.channel_name
-        )
-
-        await self.accept()
-
-        # Notify others that user joined
-        await self.channel_layer.group_send(
-            self.session_group_name,
-            {
-                'type': 'participant_joined',
-                'user_id': self.user.id,
-                'user_name': self.user.name,
-                'role': self.user.role
-            }
-        )
 
     async def disconnect(self, close_code):
         """Handle WebSocket disconnection"""
         # Update participant status to DISCONNECTED
         await self.update_participant_on_disconnect()
 
-        # Notify others that user left
-        await self.channel_layer.group_send(
-            self.session_group_name,
-            {
-                'type': 'participant_left',
-                'user_id': self.user.id,
-                'user_name': self.user.name
-            }
-        )
+        # Notify others that user left (if we have a valid user)
+        if hasattr(self, 'user') and self.user and hasattr(self, 'session_group_name'):
+            await self.channel_layer.group_send(
+                self.session_group_name,
+                {
+                    'type': 'participant_left',
+                    'user_id': getattr(self.user, 'id', 0),
+                    'user_name': getattr(self.user, 'name', 'Anonymous')
+                }
+            )
 
         # Leave session group
-        await self.channel_layer.group_discard(
-            self.session_group_name,
-            self.channel_name
-        )
+        if hasattr(self, 'session_group_name'):
+            await self.channel_layer.group_discard(
+                self.session_group_name,
+                self.channel_name
+            )
 
     async def receive(self, text_data):
         """Handle incoming WebSocket messages"""
@@ -363,42 +401,74 @@ class SessionConsumer(AsyncWebsocketConsumer):
     # Broadcast message handlers
     async def step_changed(self, event):
         """Send step changed notification to client"""
+        subtask = event['subtask']
+        # Android 앱 호환성: data 필드에 subtask 정보 포함
         await self.send(text_data=json.dumps({
             'type': 'step_changed',
-            'subtask': event['subtask']
+            'subtask': subtask,
+            'data': {
+                'id': subtask.get('id'),
+                'title': subtask.get('title'),
+                'order': subtask.get('order_index'),
+                'order_index': subtask.get('order_index'),
+                'target_action': subtask.get('target_action'),
+                'guide_text': subtask.get('guide_text'),
+                'voice_guide_text': subtask.get('voice_guide_text')
+            }
         }))
 
     async def session_status_changed(self, event):
         """Send session status changed notification to client"""
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"[Consumer] Sending session_status_changed to client: {event['status']}")
+
+        # Android 앱 호환성: data 필드 안에 status와 message 포함
         await self.send(text_data=json.dumps({
             'type': 'session_status_changed',
             'status': event['status'],
-            'message': event['message']
+            'message': event['message'],
+            'data': {
+                'status': event['status'],
+                'message': event['message']
+            }
         }))
+        logger.info(f"[Consumer] Message sent successfully")
 
     async def participant_joined(self, event):
         """Send participant joined notification to client"""
         # Don't send to self
-        if event['user_id'] == self.user.id:
+        if event['user_id'] == getattr(self.user, 'id', 0):
             return
 
         await self.send(text_data=json.dumps({
             'type': 'participant_joined',
             'user_id': event['user_id'],
             'user_name': event['user_name'],
-            'role': event['role']
+            'role': event['role'],
+            # Frontend compatibility: data wrapper
+            'data': {
+                'user_id': event['user_id'],
+                'username': event['user_name'],
+                'role': event['role']
+            }
         }))
 
     async def participant_left(self, event):
         """Send participant left notification to client"""
         # Don't send to self
-        if event['user_id'] == self.user.id:
+        if event['user_id'] == getattr(self.user, 'id', 0):
             return
 
         await self.send(text_data=json.dumps({
             'type': 'participant_left',
             'user_id': event['user_id'],
-            'user_name': event['user_name']
+            'user_name': event['user_name'],
+            # Frontend compatibility: data wrapper
+            'data': {
+                'user_id': event['user_id'],
+                'username': event['user_name']
+            }
         }))
 
     async def progress_updated(self, event):
@@ -429,6 +499,37 @@ class SessionConsumer(AsyncWebsocketConsumer):
             'message': event['message']
         }))
 
+    async def instructor_message(self, event):
+        """Send instructor broadcast message to all participants"""
+        await self.send(text_data=json.dumps({
+            'type': 'instructor_message',
+            'message': event['message'],
+            'from': event['from'],
+            'timestamp': event['timestamp'],
+            'data': {
+                'message': event['message'],
+                'from': event['from'],
+                'timestamp': event['timestamp']
+            }
+        }))
+
+    async def screenshot_updated(self, event):
+        """Send screenshot update notification to instructors only"""
+        # Only send to instructors (강사 대시보드)
+        if not hasattr(self.user, 'role') or self.user.role != 'INSTRUCTOR':
+            return
+
+        await self.send(text_data=json.dumps({
+            'type': 'screenshot_updated',
+            'data': {
+                'participant_id': event.get('participant_id'),
+                'device_id': event.get('device_id'),
+                'participant_name': event.get('participant_name'),
+                'image_url': event.get('image_url'),
+                'captured_at': event.get('captured_at'),
+            }
+        }))
+
     # Database queries
     @database_sync_to_async
     def get_session(self):
@@ -436,6 +537,21 @@ class SessionConsumer(AsyncWebsocketConsumer):
         try:
             return LectureSession.objects.get(session_code=self.session_code)
         except LectureSession.DoesNotExist:
+            return None
+
+    @database_sync_to_async
+    def get_anonymous_user(self):
+        """Get or create anonymous test user for WebSocket testing"""
+        try:
+            # For testing, return a mock user object
+            from types import SimpleNamespace
+            user = SimpleNamespace()
+            user.id = 0
+            user.is_authenticated = True
+            user.role = 'student'
+            user.name = f'Anonymous_{self.session_code}'
+            return user
+        except Exception:
             return None
 
     @database_sync_to_async
@@ -496,6 +612,10 @@ class SessionConsumer(AsyncWebsocketConsumer):
     def update_participant_status(self, status):
         """Update participant status"""
         try:
+            # Skip for anonymous users during testing
+            if hasattr(self.user, 'id') and self.user.id == 0:
+                return True
+
             session = LectureSession.objects.get(session_code=self.session_code)
             participant, created = SessionParticipant.objects.get_or_create(
                 session=session,
@@ -514,6 +634,10 @@ class SessionConsumer(AsyncWebsocketConsumer):
     def update_participant_last_active(self):
         """Update participant last_active_at timestamp"""
         try:
+            # Skip for anonymous users during testing
+            if hasattr(self.user, 'id') and self.user.id == 0:
+                return True
+
             session = LectureSession.objects.get(session_code=self.session_code)
             SessionParticipant.objects.filter(
                 session=session,
@@ -527,6 +651,10 @@ class SessionConsumer(AsyncWebsocketConsumer):
     def update_participant_subtask(self, subtask_id):
         """Update participant current subtask"""
         try:
+            # Skip for anonymous users during testing
+            if hasattr(self.user, 'id') and self.user.id == 0:
+                return True
+
             from apps.tasks.models import Subtask
             session = LectureSession.objects.get(session_code=self.session_code)
             subtask = Subtask.objects.get(id=subtask_id)
@@ -546,6 +674,10 @@ class SessionConsumer(AsyncWebsocketConsumer):
     def update_participant_on_disconnect(self):
         """Update participant status on disconnect"""
         try:
+            # Skip for anonymous users during testing
+            if hasattr(self.user, 'id') and self.user.id == 0:
+                return True
+
             session = LectureSession.objects.get(session_code=self.session_code)
             SessionParticipant.objects.filter(
                 session=session,

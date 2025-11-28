@@ -9,6 +9,7 @@ import { LectureFormPage } from './pages/lecture-form-page';
 import { SessionControlPage } from './pages/session-control-page';
 import { StatisticsPage } from './pages/statistics-page';
 import { LiveSessionPage } from './pages/live-session-page';
+import { JoinSessionPage } from './pages/join-session-page';
 import { Toaster } from './components/ui/sonner';
 
 export default function App() {
@@ -17,7 +18,8 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
-          
+          <Route path="/join/:sessionCode" element={<JoinSessionPage />} />
+
           <Route
             path="/"
             element={
@@ -85,6 +87,15 @@ export default function App() {
           />
           
           <Route
+            path="/live-session"
+            element={
+              <ProtectedRoute>
+                <LiveSessionPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
             path="/live-session/:sessionId"
             element={
               <ProtectedRoute>
@@ -92,7 +103,7 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-          
+
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>

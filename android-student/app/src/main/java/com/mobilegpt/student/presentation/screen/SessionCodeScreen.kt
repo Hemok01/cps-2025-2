@@ -8,8 +8,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.hilt.navigation.compose.hiltViewModel
-import com.mobilegpt.student.presentation.viewmodel.JoinSessionUiState
+import com.mobilegpt.student.presentation.navigation.JoinSessionUiState
 import com.mobilegpt.student.presentation.viewmodel.SessionViewModel
 
 /**
@@ -17,12 +16,22 @@ import com.mobilegpt.student.presentation.viewmodel.SessionViewModel
  */
 @Composable
 fun SessionCodeScreen(
+    initialSessionCode: String? = null,
     onJoinSuccess: () -> Unit,
-    viewModel: SessionViewModel = hiltViewModel()
+    viewModel: SessionViewModel
 ) {
-    var sessionCode by remember { mutableStateOf("NUCP8M") }
+    var sessionCode by remember {
+        mutableStateOf(initialSessionCode?.uppercase() ?: "NUCP8M")
+    }
 
-    val joinUiState by viewModel.joinUiState.collectAsState()
+    val joinUiState by viewModel.joinSessionState.collectAsState()
+
+    // Auto-join if session code is provided via deep link
+    LaunchedEffect(initialSessionCode) {
+        if (!initialSessionCode.isNullOrBlank() && joinUiState is JoinSessionUiState.Idle) {
+            viewModel.joinSession(initialSessionCode.uppercase())
+        }
+    }
 
     LaunchedEffect(joinUiState) {
         if (joinUiState is JoinSessionUiState.Success) {

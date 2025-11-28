@@ -31,5 +31,5 @@ RUN python manage.py collectstatic --noinput || true
 # Expose port
 EXPOSE 8000
 
-# Run the application
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "4", "config.wsgi:application"]
+# Run the application with Daphne (ASGI) for WebSocket support
+CMD ["daphne", "-b", "0.0.0.0", "-p", "8000", "config.asgi:application"]

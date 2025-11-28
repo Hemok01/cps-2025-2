@@ -3,11 +3,13 @@ Lecture Session Views
 """
 from rest_framework import generics, status
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.db.models import Q
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
 
 from apps.lectures.models import Lecture
 from apps.tasks.models import Subtask
@@ -17,6 +19,93 @@ from .serializers import (
     LectureSessionCreateSerializer,
     SessionParticipantSerializer
 )
+
+
+def broadcast_session_status(session_code: str, session_status: str, message: str = ''):
+    """
+    WebSocket을 통해 세션 상태 변경을 모든 참가자에게 브로드캐스트
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    try:
+        channel_layer = get_channel_layer()
+        if channel_layer is None:
+            logger.error("Channel layer is None!")
+            return
+
+        group_name = f'session_{session_code}'
+        logger.info(f"Broadcasting session_status_changed to {group_name}: {session_status}")
+
+        async_to_sync(channel_layer.group_send)(
+            group_name,
+            {
+                'type': 'session_status_changed',
+                'status': session_status,
+                'message': message
+            }
+        )
+        logger.info(f"Broadcast successful to {group_name}")
+    except Exception as e:
+        logger.error(f"Broadcast failed: {e}", exc_info=True)
+
+
+def broadcast_step_changed(session_code: str, subtask: dict):
+    """
+    WebSocket을 통해 단계 변경을 모든 참가자에게 브로드캐스트
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    try:
+        channel_layer = get_channel_layer()
+        if channel_layer is None:
+            logger.error("Channel layer is None!")
+            return
+
+        group_name = f'session_{session_code}'
+        logger.info(f"Broadcasting step_changed to {group_name}: {subtask.get('title', 'unknown')}")
+
+        async_to_sync(channel_layer.group_send)(
+            group_name,
+            {
+                'type': 'step_changed',
+                'subtask': subtask
+            }
+        )
+        logger.info(f"Step broadcast successful to {group_name}")
+    except Exception as e:
+        logger.error(f"Step broadcast failed: {e}", exc_info=True)
+
+
+def broadcast_instructor_message(session_code: str, message: str, instructor_name: str = '강사'):
+    """
+    WebSocket을 통해 강사 메시지를 모든 참가자에게 브로드캐스트
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    try:
+        channel_layer = get_channel_layer()
+        if channel_layer is None:
+            logger.error("Channel layer is None!")
+            return
+
+        group_name = f'session_{session_code}'
+        logger.info(f"Broadcasting instructor_message to {group_name}: {message[:50]}...")
+
+        async_to_sync(channel_layer.group_send)(
+            group_name,
+            {
+                'type': 'instructor_message',
+                'message': message,
+                'from': instructor_name,
+                'timestamp': timezone.now().isoformat()
+            }
+        )
+        logger.info(f"Instructor message broadcast successful to {group_name}")
+    except Exception as e:
+        logger.error(f"Instructor message broadcast failed: {e}", exc_info=True)
 
 
 class SessionCreateView(generics.CreateAPIView):
@@ -121,30 +210,73 @@ class SessionStartView(APIView):
 
     def post(self, request, session_id):
         session = get_object_or_404(LectureSession, pk=session_id)
-        
+
         # 강사 권한 확인
         if session.instructor != request.user:
             return Response(
                 {'error': '강사만 강의를 시작할 수 있습니다.'},
                 status=status.HTTP_403_FORBIDDEN
             )
-        
-        if session.status != 'WAITING':
+
+        # 이미 진행 중인 세션이면 현재 상태 반환
+        if session.status == 'IN_PROGRESS':
+            return Response({
+                'session_id': session.id,
+                'status': session.status,
+                'started_at': session.started_at,
+                'current_subtask': {
+                    'id': session.current_subtask.id,
+                    'title': session.current_subtask.title
+                } if session.current_subtask else None,
+                'active_participants': session.participants.filter(status='ACTIVE').count(),
+                'message': '이미 진행 중인 수업입니다'
+            })
+
+        if session.status not in ['WAITING', 'CREATED']:
             return Response(
-                {'error': '이미 시작된 세션입니다.'},
+                {'error': '시작할 수 없는 세션 상태입니다.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
+
         first_subtask_id = request.data.get('first_subtask_id')
         message = request.data.get('message', '')
-        
-        if not first_subtask_id:
-            return Response(
-                {'error': 'first_subtask_id가 필요합니다.'},
-                status=status.HTTP_400_BAD_REQUEST
+
+        # first_subtask_id가 없으면 강의의 첫 번째 subtask를 자동으로 찾기
+        first_subtask = None
+        if first_subtask_id:
+            first_subtask = get_object_or_404(Subtask, pk=first_subtask_id)
+        else:
+            # 강의에 연결된 Task의 첫 번째 Subtask 찾기
+            from apps.tasks.models import Task
+            first_task = Task.objects.filter(lecture=session.lecture).order_by('order_index').first()
+            if first_task:
+                first_subtask = first_task.subtasks.order_by('order_index').first()
+
+        # subtask가 없어도 세션은 시작 가능 (subtask 없이 진행)
+        if not first_subtask:
+            # subtask 없이 세션만 시작
+            session.status = 'IN_PROGRESS'
+            session.started_at = timezone.now()
+            session.save()
+
+            # 모든 대기 중인 참가자를 활성화
+            session.participants.filter(status='WAITING').update(status='ACTIVE')
+
+            # WebSocket 브로드캐스트 - 세션 시작 알림
+            broadcast_session_status(
+                session.session_code,
+                'IN_PROGRESS',
+                '수업이 시작되었습니다'
             )
-        
-        first_subtask = get_object_or_404(Subtask, pk=first_subtask_id)
+
+            return Response({
+                'session_id': session.id,
+                'status': session.status,
+                'started_at': session.started_at,
+                'current_subtask': None,
+                'active_participants': session.participants.filter(status='ACTIVE').count(),
+                'message': '수업이 시작되었습니다 (단계 정보 없음)'
+            })
         
         # 세션 상태 업데이트
         session.status = 'IN_PROGRESS'
@@ -166,7 +298,25 @@ class SessionStartView(APIView):
             action='START_STEP',
             message=message
         )
-        
+
+        # WebSocket 브로드캐스트 - 세션 시작 + 첫 번째 단계 알림
+        broadcast_session_status(
+            session.session_code,
+            'IN_PROGRESS',
+            '수업이 시작되었습니다'
+        )
+        broadcast_step_changed(
+            session.session_code,
+            {
+                'id': first_subtask.id,
+                'title': first_subtask.title,
+                'order_index': first_subtask.order_index,
+                'target_action': first_subtask.target_action,
+                'guide_text': first_subtask.guide_text,
+                'voice_guide_text': first_subtask.voice_guide_text
+            }
+        )
+
         return Response({
             'session_id': session.id,
             'status': session.status,
@@ -229,7 +379,20 @@ class SessionNextStepView(APIView):
             action='START_STEP',
             message=message
         )
-        
+
+        # WebSocket 브로드캐스트 - 단계 변경 알림
+        broadcast_step_changed(
+            session.session_code,
+            {
+                'id': next_subtask.id,
+                'title': next_subtask.title,
+                'order_index': next_subtask.order_index,
+                'target_action': next_subtask.target_action,
+                'guide_text': next_subtask.guide_text,
+                'voice_guide_text': next_subtask.voice_guide_text
+            }
+        )
+
         return Response({
             'session_id': session.id,
             'previous_subtask': {
@@ -250,15 +413,25 @@ class SessionPauseView(APIView):
 
     def post(self, request, session_id):
         session = get_object_or_404(LectureSession, pk=session_id)
-        
+
         if session.instructor != request.user:
             return Response(
                 {'error': '강사만 강의를 일시 정지할 수 있습니다.'},
                 status=status.HTTP_403_FORBIDDEN
             )
-        
+
+        if session.status != 'IN_PROGRESS':
+            return Response(
+                {'error': '진행 중인 세션만 일시 정지할 수 있습니다.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         message = request.data.get('message', '')
-        
+
+        # 세션 상태 업데이트
+        session.status = 'PAUSED'
+        session.save()
+
         # 제어 기록 생성
         if session.current_subtask:
             SessionStepControl.objects.create(
@@ -268,9 +441,17 @@ class SessionPauseView(APIView):
                 action='PAUSE',
                 message=message
             )
-        
+
+        # WebSocket 브로드캐스트 - 일시 정지 알림
+        broadcast_session_status(
+            session.session_code,
+            'PAUSED',
+            '수업이 일시 정지되었습니다'
+        )
+
         return Response({
             'session_id': session.id,
+            'status': session.status,
             'action': 'PAUSE',
             'message': '수업이 일시 정지되었습니다',
             'timestamp': timezone.now()
@@ -283,15 +464,25 @@ class SessionResumeView(APIView):
 
     def post(self, request, session_id):
         session = get_object_or_404(LectureSession, pk=session_id)
-        
+
         if session.instructor != request.user:
             return Response(
                 {'error': '강사만 강의를 재개할 수 있습니다.'},
                 status=status.HTTP_403_FORBIDDEN
             )
-        
+
+        if session.status != 'PAUSED':
+            return Response(
+                {'error': '일시 정지된 세션만 재개할 수 있습니다.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         message = request.data.get('message', '')
-        
+
+        # 세션 상태 업데이트
+        session.status = 'IN_PROGRESS'
+        session.save()
+
         # 제어 기록 생성
         if session.current_subtask:
             SessionStepControl.objects.create(
@@ -301,9 +492,17 @@ class SessionResumeView(APIView):
                 action='RESUME',
                 message=message
             )
-        
+
+        # WebSocket 브로드캐스트 - 재개 알림
+        broadcast_session_status(
+            session.session_code,
+            'IN_PROGRESS',
+            '수업이 재개되었습니다'
+        )
+
         return Response({
             'session_id': session.id,
+            'status': session.status,
             'action': 'RESUME',
             'current_subtask': {
                 'id': session.current_subtask.id if session.current_subtask else None,
@@ -332,12 +531,19 @@ class SessionEndView(APIView):
         session.status = 'REVIEW_MODE'
         session.ended_at = timezone.now()
         session.save()
-        
+
         # 통계 계산
         total_participants = session.participants.count()
         completed_participants = session.participants.filter(status='COMPLETED').count()
         duration_minutes = (session.ended_at - session.started_at).total_seconds() / 60 if session.started_at else 0
-        
+
+        # WebSocket 브로드캐스트 - 종료 알림
+        broadcast_session_status(
+            session.session_code,
+            'REVIEW_MODE',
+            '수업이 종료되었습니다'
+        )
+
         return Response({
             'session_id': session.id,
             'status': session.status,
@@ -392,4 +598,273 @@ class MyActiveSessionView(APIView):
                 'my_status': participation.status,
                 'joined_at': participation.joined_at
             }
+        })
+
+
+class InstructorActiveSessionView(APIView):
+    """강사가 진행 중인 활성 세션 조회"""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        # 강사가 진행 중인 세션 조회 (WAITING 또는 IN_PROGRESS 상태)
+        active_sessions = LectureSession.objects.filter(
+            instructor=request.user,
+            status__in=['WAITING', 'IN_PROGRESS']
+        ).select_related('lecture', 'current_subtask').order_by('-created_at')
+
+        if not active_sessions.exists():
+            return Response({
+                'active_sessions': [],
+                'message': '진행 중인 세션이 없습니다'
+            })
+
+        sessions_data = []
+        for session in active_sessions:
+            sessions_data.append({
+                'id': session.id,
+                'title': session.title,
+                'session_code': session.session_code,
+                'status': session.status,
+                'lecture': {
+                    'id': session.lecture.id,
+                    'title': session.lecture.title
+                } if session.lecture else None,
+                'current_subtask': {
+                    'id': session.current_subtask.id,
+                    'title': session.current_subtask.title
+                } if session.current_subtask else None,
+                'participant_count': session.participants.count(),
+                'created_at': session.created_at,
+                'started_at': session.started_at,
+            })
+
+        return Response({
+            'active_sessions': sessions_data,
+            'count': len(sessions_data)
+        })
+
+
+class AnonymousSessionJoinView(APIView):
+    """
+    익명 세션 참가 (학생 앱용)
+    인증 없이 device_id와 name으로 세션에 참가합니다.
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        session_code = request.data.get('session_code')
+        device_id = request.data.get('device_id')
+        name = request.data.get('name', '익명')
+
+        if not session_code:
+            return Response(
+                {'error': 'session_code가 필요합니다.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not device_id:
+            return Response(
+                {'error': 'device_id가 필요합니다.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 세션 조회
+        try:
+            session = LectureSession.objects.select_related(
+                'lecture', 'instructor', 'current_subtask'
+            ).get(
+                session_code=session_code.upper(),
+                status__in=['WAITING', 'IN_PROGRESS', 'REVIEW_MODE']
+            )
+        except LectureSession.DoesNotExist:
+            return Response(
+                {'error': '세션을 찾을 수 없거나 이미 종료되었습니다.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # 이미 참가 중인지 확인 (device_id로)
+        participant, created = SessionParticipant.objects.get_or_create(
+            session=session,
+            device_id=device_id,
+            defaults={
+                'display_name': name,
+                'status': 'WAITING' if session.status == 'WAITING' else 'ACTIVE',
+                'current_subtask': session.current_subtask
+            }
+        )
+
+        if not created:
+            # 이미 참가 중이면 정보 업데이트
+            participant.display_name = name
+            if session.status == 'IN_PROGRESS' and participant.status == 'WAITING':
+                participant.status = 'ACTIVE'
+                participant.current_subtask = session.current_subtask
+            participant.save()
+
+        # 현재 단계 정보
+        current_subtask_data = None
+        if session.current_subtask:
+            current_subtask_data = {
+                'id': session.current_subtask.id,
+                'title': session.current_subtask.title,
+                'description': session.current_subtask.description,
+                'order_index': session.current_subtask.order_index
+            }
+
+        # 전체 서브태스크 목록 (진행도 표시용)
+        subtasks = []
+        if session.lecture:
+            from apps.tasks.models import Task
+            tasks = Task.objects.filter(lecture=session.lecture).prefetch_related('subtasks')
+            for task in tasks:
+                for subtask in task.subtasks.all().order_by('order_index'):
+                    subtasks.append({
+                        'id': subtask.id,
+                        'title': subtask.title,
+                        'order_index': subtask.order_index
+                    })
+
+        return Response({
+            'participant_id': participant.id,
+            'session': {
+                'id': session.id,
+                'session_code': session.session_code,
+                'title': session.title,
+                'status': session.status,
+                'lecture': {
+                    'id': session.lecture.id,
+                    'title': session.lecture.title
+                } if session.lecture else None,
+                'instructor': {
+                    'id': session.instructor.id,
+                    'name': session.instructor.name
+                } if session.instructor else None,
+                'current_subtask': current_subtask_data,
+                'currentSubtaskDetail': current_subtask_data,  # Android 앱 호환성
+                'subtasks': subtasks,
+                'total_steps': len(subtasks)
+            },
+            'my_status': participant.status,
+            'joined_at': participant.joined_at,
+            'message': '세션에 참가했습니다.' if created else '세션에 다시 연결되었습니다.'
+        }, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
+
+class SessionBroadcastView(APIView):
+    """
+    전체 학생에게 메시지 브로드캐스트 (강사 전용)
+    POST /api/sessions/{session_id}/broadcast/
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, session_id):
+        session = get_object_or_404(LectureSession, pk=session_id)
+
+        # 강사 권한 확인
+        if session.instructor != request.user:
+            return Response(
+                {'error': '강사만 메시지를 브로드캐스트할 수 있습니다.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # 메시지 검증
+        message = request.data.get('message', '').strip()
+        if not message:
+            return Response(
+                {'error': '메시지 내용이 필요합니다.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if len(message) > 500:
+            return Response(
+                {'error': '메시지는 500자를 초과할 수 없습니다.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # WebSocket으로 브로드캐스트
+        broadcast_instructor_message(
+            session.session_code,
+            message,
+            request.user.name if hasattr(request.user, 'name') else '강사'
+        )
+
+        return Response({
+            'session_id': session.id,
+            'message': message,
+            'broadcast_to': session.participants.filter(status__in=['WAITING', 'ACTIVE']).count(),
+            'timestamp': timezone.now().isoformat(),
+            'success': True
+        })
+
+
+class SessionSwitchLectureView(APIView):
+    """
+    세션의 강의 전환 (강사 전용)
+    POST /api/sessions/{session_id}/switch-lecture/
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, session_id):
+        session = get_object_or_404(LectureSession, pk=session_id)
+
+        # 강사 권한 확인
+        if session.instructor != request.user:
+            return Response(
+                {'error': '강사만 강의를 전환할 수 있습니다.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # 진행 중인 세션만 강의 전환 가능
+        if session.status not in ['IN_PROGRESS', 'PAUSED']:
+            return Response(
+                {'error': '진행 중이거나 일시정지된 세션만 강의를 전환할 수 있습니다.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        lecture_id = request.data.get('lecture_id')
+        if not lecture_id:
+            return Response(
+                {'error': 'lecture_id가 필요합니다.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 새 강의 조회 및 권한 확인
+        new_lecture = get_object_or_404(Lecture, pk=lecture_id)
+        if new_lecture.instructor != request.user:
+            return Response(
+                {'error': '본인의 강의만 전환할 수 있습니다.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        previous_lecture = session.lecture
+
+        # 강의 변경
+        session.lecture = new_lecture
+        session.current_subtask = None  # 새 강의로 전환 시 현재 단계 초기화
+        session.save()
+
+        # 참가자들의 현재 단계도 초기화
+        session.participants.filter(status__in=['WAITING', 'ACTIVE']).update(
+            current_subtask=None
+        )
+
+        # WebSocket으로 강의 전환 알림 브로드캐스트
+        broadcast_session_status(
+            session.session_code,
+            session.status,
+            f'강의가 "{new_lecture.title}"(으)로 전환되었습니다'
+        )
+
+        return Response({
+            'session_id': session.id,
+            'previous_lecture': {
+                'id': previous_lecture.id if previous_lecture else None,
+                'title': previous_lecture.title if previous_lecture else None,
+            },
+            'new_lecture': {
+                'id': new_lecture.id,
+                'title': new_lecture.title,
+            },
+            'timestamp': timezone.now().isoformat(),
+            'success': True
         })

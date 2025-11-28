@@ -131,7 +131,7 @@ export function LoginPage() {
                 💡 테스트 계정
               </p>
               <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>이메일: instructor@test.com</p>
-              <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>비밀번호: TestInstructor123!@#</p>
+              <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>비밀번호: test1234</p>
             </div>
           </form>
         </CardContent>

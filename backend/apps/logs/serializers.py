@@ -33,6 +33,20 @@ class ActivityLogCreateSerializer(serializers.ModelSerializer):
         ]
 
 
+class AnonymousActivityLogCreateSerializer(serializers.ModelSerializer):
+    """익명 사용자용 Activity log creation serializer (수강자 앱용)"""
+    device_id = serializers.CharField(max_length=255, required=True)
+
+    class Meta:
+        model = ActivityLog
+        fields = [
+            'device_id', 'subtask', 'session', 'recording_session', 'event_type', 'event_data',
+            'screen_info', 'node_info', 'parent_node_info',
+            'view_id_resource_name', 'content_description', 'is_sensitive_data',
+            'bounds', 'is_clickable', 'is_editable', 'is_enabled', 'is_focused'
+        ]
+
+
 class RecordedEventSerializer(serializers.ModelSerializer):
     """녹화된 이벤트 전용 serializer (Android 앱에서 전송용)"""
 

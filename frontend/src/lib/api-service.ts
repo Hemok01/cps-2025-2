@@ -233,35 +233,36 @@ export const apiService = {
   mapSessionStatus(backendStatus: string): SessionStatus {
     const statusMap: Record<string, SessionStatus> = {
       'WAITING': 'CREATED',
+      'CREATED': 'CREATED',
       'ACTIVE': 'ACTIVE',
+      'IN_PROGRESS': 'ACTIVE',
       'PAUSED': 'PAUSED',
       'ENDED': 'ENDED',
-      'CREATED': 'CREATED',
+      'REVIEW_MODE': 'ENDED',
+      'COMPLETED': 'ENDED',
     };
     return statusMap[backendStatus] || 'CREATED';
   },
 
   async switchLecture(sessionId: number, lectureId: number): Promise<Session> {
-    await delay(300);
-    const session = mockSessions.find(s => s.id === sessionId);
-    if (!session) throw new Error('Session not found');
-    
-    // Mark current lecture as completed
-    const currentLecture = session.lectures.find(l => l.isActive);
-    if (currentLecture) {
-      currentLecture.isActive = false;
-      currentLecture.completedAt = new Date().toISOString();
+    try {
+      const response = await apiClient.post(`/sessions/${sessionId}/switch-lecture/`, {
+        lecture_id: lectureId
+      });
+
+      const result = response.data;
+
+      // 세션 정보 다시 조회하여 최신 상태 반환
+      const updatedSession = await this.getSessionById(sessionId);
+      if (!updatedSession) {
+        throw new Error('Session not found after lecture switch');
+      }
+
+      return updatedSession;
+    } catch (error) {
+      console.error('Failed to switch lecture:', error);
+      throw error;
     }
-    
-    // Activate new lecture
-    const newLecture = session.lectures.find(l => l.lectureId === lectureId);
-    if (!newLecture) throw new Error('Lecture not found in session');
-    
-    newLecture.isActive = true;
-    session.activeLectureId = lectureId;
-    session.currentStep = undefined; // Reset step for new lecture
-    
-    return session;
   },
 
   async getSessionById(sessionId: number): Promise<Session | null> {
@@ -289,19 +290,54 @@ export const apiService = {
     }
   },
 
-  async startSession(sessionId: number, firstSubtaskId?: number): Promise<Session> {
+  async getInstructorActiveSessions(): Promise<Session[]> {
     try {
-      const response = await apiClient.post(`/sessions/${sessionId}/start/`, {
-        first_subtask_id: firstSubtaskId || 1,
-        message: '수업을 시작합니다'
-      });
-      const session = response.data;
-      return {
+      const response = await apiClient.get('/sessions/instructor-active/');
+      const sessions = response.data.active_sessions || [];
+
+      return sessions.map((session: any) => ({
         id: session.id,
         title: session.title,
-        code: session.session_code || session.code,
+        code: session.session_code,
         status: this.mapSessionStatus(session.status),
         createdAt: session.created_at,
+        startedAt: session.started_at,
+        currentStep: session.current_subtask?.title,
+        lectures: session.lecture ? [{
+          id: 1,
+          lectureId: session.lecture.id,
+          lectureName: session.lecture.title,
+          order: 1,
+          isActive: true,
+          completedAt: undefined,
+        }] : [],
+        activeLectureId: session.lecture?.id,
+        participantCount: session.participant_count || 0,
+      }));
+    } catch (error) {
+      console.error('Failed to fetch instructor active sessions:', error);
+      return [];
+    }
+  },
+
+  async startSession(sessionId: number, firstSubtaskId?: number): Promise<Session> {
+    try {
+      // first_subtask_id가 없으면 백엔드에서 자동으로 첫 번째 subtask를 찾아 사용
+      const requestData: Record<string, any> = {
+        message: '수업을 시작합니다'
+      };
+      if (firstSubtaskId) {
+        requestData.first_subtask_id = firstSubtaskId;
+      }
+
+      const response = await apiClient.post(`/sessions/${sessionId}/start/`, requestData);
+      const session = response.data;
+      return {
+        id: session.session_id || session.id,
+        title: session.title || '',
+        code: session.session_code || session.code || '',
+        status: this.mapSessionStatus(session.status),
+        createdAt: session.created_at || '',
         startedAt: session.started_at,
         currentStep: session.current_subtask?.title || session.current_step,
         lectures: session.lectures || [],
@@ -405,8 +441,11 @@ export const apiService = {
     try {
       const response = await apiClient.get(`/sessions/${sessionId}/participants/`);
 
-      // DRF 페이지네이션 응답 처리
-      const participantsData = response.data.results || response.data;
+      // 다양한 응답 형식 처리:
+      // 1. { participants: [...] } - 커스텀 API
+      // 2. { results: [...] } - DRF 페이지네이션
+      // 3. [...] - 직접 배열
+      const participantsData = response.data.participants || response.data.results || response.data;
 
       if (!Array.isArray(participantsData)) {
         console.warn('Unexpected response format for participants:', response.data);
@@ -415,8 +454,8 @@ export const apiService = {
 
       return participantsData.map((participant: any) => ({
         id: participant.user?.id || participant.id,
-        name: participant.user?.name || participant.name,
-        email: participant.user?.email || participant.email,
+        name: participant.user?.name || participant.name || participant.display_name,
+        email: participant.user?.email || participant.email || '',
         joinedAt: participant.joined_at,
         isActive: participant.is_active !== undefined ? participant.is_active : true,
       }));
@@ -502,6 +541,22 @@ export const apiService = {
       await apiClient.post(`/help/request/${requestId}/resolve/`, {});
     } catch (error) {
       console.error('Failed to resolve help request:', error);
+      throw error;
+    }
+  },
+
+  // Broadcast message to all participants
+  async broadcastMessage(sessionId: number, message: string): Promise<{ success: boolean; broadcastTo: number }> {
+    try {
+      const response = await apiClient.post(`/sessions/${sessionId}/broadcast/`, {
+        message
+      });
+      return {
+        success: response.data.success,
+        broadcastTo: response.data.broadcast_to || 0,
+      };
+    } catch (error) {
+      console.error('Failed to broadcast message:', error);
       throw error;
     }
   },

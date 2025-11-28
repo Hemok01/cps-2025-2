@@ -18,6 +18,9 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 
 django_asgi_app = get_asgi_application()
 
+# Import custom middleware for testing
+from config.middleware import AllowAnonymousWebSocketMiddlewareStack
+
 # Import websocket routing after Django setup
 from apps.sessions import routing as session_routing
 from apps.dashboard import routing as dashboard_routing
@@ -25,13 +28,11 @@ from apps.progress import routing as progress_routing
 
 application = ProtocolTypeRouter({
     "http": django_asgi_app,
-    "websocket": AllowedHostsOriginValidator(
-        AuthMiddlewareStack(
-            URLRouter(
-                session_routing.websocket_urlpatterns +
-                dashboard_routing.websocket_urlpatterns +
-                progress_routing.websocket_urlpatterns
-            )
+    "websocket": AllowAnonymousWebSocketMiddlewareStack(
+        URLRouter(
+            session_routing.websocket_urlpatterns +
+            dashboard_routing.websocket_urlpatterns +
+            progress_routing.websocket_urlpatterns
         )
     ),
 })

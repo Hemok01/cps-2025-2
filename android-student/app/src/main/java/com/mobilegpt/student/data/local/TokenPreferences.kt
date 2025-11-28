@@ -27,6 +27,10 @@ class TokenPreferences @Inject constructor(
         private const val KEY_USER_ID = "user_id"
         private const val KEY_USER_NAME = "user_name"
         private const val KEY_USER_EMAIL = "user_email"
+        // 간편 등록용
+        private const val KEY_DEVICE_ID = "device_id"
+        private const val KEY_DISPLAY_NAME = "display_name"
+        private const val KEY_IS_REGISTERED = "is_registered"
     }
 
     /**
@@ -88,6 +92,51 @@ class TokenPreferences @Inject constructor(
      */
     fun isLoggedIn(): Boolean {
         return getAccessToken() != null
+    }
+
+    // ==================== 간편 등록 관련 ====================
+
+    /**
+     * 간편 등록 정보 저장
+     * @param deviceId 기기 고유값
+     * @param displayName 표시 이름
+     */
+    fun setSimpleRegister(deviceId: String, displayName: String) {
+        prefs.edit().apply {
+            putString(KEY_DEVICE_ID, deviceId)
+            putString(KEY_DISPLAY_NAME, displayName)
+            putBoolean(KEY_IS_REGISTERED, true)
+            apply()
+        }
+    }
+
+    /**
+     * 기기 ID 가져오기
+     */
+    fun getDeviceId(): String? {
+        return prefs.getString(KEY_DEVICE_ID, null)
+    }
+
+    /**
+     * 표시 이름 가져오기
+     */
+    fun getDisplayName(): String? {
+        return prefs.getString(KEY_DISPLAY_NAME, null)
+    }
+
+    /**
+     * 간편 등록 여부 확인
+     */
+    fun isRegistered(): Boolean {
+        return prefs.getBoolean(KEY_IS_REGISTERED, false) &&
+               !getDisplayName().isNullOrEmpty()
+    }
+
+    /**
+     * 표시 이름 업데이트
+     */
+    fun updateDisplayName(displayName: String) {
+        prefs.edit().putString(KEY_DISPLAY_NAME, displayName).apply()
     }
 
     /**

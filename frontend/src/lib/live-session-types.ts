@@ -21,6 +21,9 @@ export interface StudentListItem {
   avatarUrl?: string;
   isSelected: boolean;
   status: 'active' | 'inactive' | 'help_needed';
+  deviceId?: string;
+  hasRecentScreenshot?: boolean;
+  lastScreenshotAt?: string;
 }
 
 export interface ProgressData {
@@ -60,4 +63,5 @@ export interface StudentScreen {
   lastUpdated: string;
   isLoading: boolean;
   error?: string;
+  deviceId?: string;
 }

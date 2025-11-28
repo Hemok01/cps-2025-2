@@ -1,7 +1,10 @@
 import { useEffect, useState, useCallback } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
+import { QRCodeSVG } from "qrcode.react";
 import { apiService } from "../lib/api-service";
 import { Lecture, Session, Participant } from "../lib/types";
+import { wsClient } from "../lib/websocket-client";
+import type { IncomingMessage } from "../types/websocket";
 import {
   Card,
   CardContent,
@@ -40,6 +43,8 @@ import {
   Plus,
   X,
   ChevronRight,
+  QrCode,
+  Download,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -74,19 +79,91 @@ export function SessionControlPage() {
   );
   const [sessionTitle, setSessionTitle] = useState("");
   const [currentSession, setCurrentSession] = useState<Session | null>(null);
+  const [activeSessions, setActiveSessions] = useState<Session[]>([]);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [copied, setCopied] = useState(false);
 
   // Load data
   useEffect(() => {
-    loadLectures();
+    loadInitialData();
   }, []);
 
+  const loadInitialData = async () => {
+    setInitialLoading(true);
+    try {
+      await Promise.all([loadLectures(), loadActiveSessions()]);
+    } finally {
+      setInitialLoading(false);
+    }
+  };
+
+  const loadActiveSessions = async () => {
+    try {
+      const sessions = await apiService.getInstructorActiveSessions();
+      setActiveSessions(sessions);
+      // 활성 세션이 하나만 있으면 자동으로 선택
+      if (sessions.length === 1 && !currentSession) {
+        setCurrentSession(sessions[0]);
+      }
+    } catch (error) {
+      console.error("Failed to load active sessions:", error);
+    }
+  };
+
+  // Setup WebSocket for real-time participant updates
   useEffect(() => {
-    if (currentSession && currentSession.status !== "ENDED") {
-      const interval = setInterval(loadParticipants, POLL_INTERVAL);
-      return () => clearInterval(interval);
+    const sessionCode = currentSession?.code || currentSession?.session_code;
+    if (currentSession && sessionCode && currentSession.status !== "ENDED") {
+      console.log('[SessionControl] Setting up WebSocket for session:', sessionCode);
+
+      // Connect to WebSocket
+      wsClient.connect(sessionCode);
+
+      // Subscribe to WebSocket messages
+      const unsubscribe = wsClient.subscribe(handleWebSocketMessage);
+
+      // Load initial participants
+      loadParticipants();
+
+      return () => {
+        unsubscribe();
+        wsClient.disconnect();
+      };
+    }
+  }, [currentSession]);
+
+  // Handle incoming WebSocket messages
+  const handleWebSocketMessage = useCallback((message: IncomingMessage) => {
+    console.log('[SessionControl] Received WebSocket message:', message);
+
+    switch (message.type) {
+      case 'participant_joined':
+        // Reload participants list when someone joins
+        toast.success(`${message.data.username}님이 입장했습니다`);
+        loadParticipants();
+        break;
+
+      case 'participant_left':
+        // Reload participants list when someone leaves
+        toast.info(`${message.data.username}님이 퇴장했습니다`);
+        loadParticipants();
+        break;
+
+      case 'session_status_changed':
+        // Update session status
+        if (currentSession) {
+          setCurrentSession({
+            ...currentSession,
+            status: message.data.status.toUpperCase() as 'CREATED' | 'ACTIVE' | 'PAUSED' | 'ENDED',
+          });
+        }
+        break;
+
+      default:
+        // Ignore other message types for Session Control Page
+        break;
     }
   }, [currentSession]);
 
@@ -156,10 +233,33 @@ export function SessionControlPage() {
   }, [currentSession]);
 
   // Session actions
-  const handleStartSession = () => executeSessionAction('start', {
-    apiCall: apiService.startSession,
-    successMessage: "수업이 시작되었습니다",
-  });
+  const handleStartSession = async () => {
+    if (!currentSession) return;
+
+    setLoading(true);
+    try {
+      const updated = await apiService.startSession(currentSession.id);
+      setCurrentSession(updated);
+      toast.success("수업이 시작되었습니다. 실시간 화면으로 이동합니다...");
+
+      // 실시간 화면으로 자동 이동
+      setTimeout(() => {
+        navigate(`/live-session/${currentSession.id}`);
+      }, 1000);
+    } catch (error: any) {
+      // 이미 시작된 세션인 경우 처리
+      if (error.response?.status === 400) {
+        toast.info("이미 진행 중인 수업입니다. 실시간 화면으로 이동합니다...");
+        setTimeout(() => {
+          navigate(`/live-session/${currentSession.id}`);
+        }, 1000);
+      } else {
+        toast.error("수업 시작에 실패했습니다");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handlePauseSession = () => executeSessionAction('pause', {
     apiCall: apiService.pauseSession,
@@ -257,12 +357,102 @@ export function SessionControlPage() {
       .filter((l): l is Lecture => l !== undefined);
   };
 
+  // 세션 선택 핸들러
+  const handleSelectActiveSession = (session: Session) => {
+    setCurrentSession(session);
+  };
+
+  // 활성 세션 리스트에서 현재 세션 제거 (종료 후)
+  const handleSessionEnded = () => {
+    setActiveSessions(prev => prev.filter(s => s.id !== currentSession?.id));
+  };
+
+  // 종료 핸들러 수정
+  const handleEndSessionWithCleanup = async () => {
+    if (!currentSession) return;
+
+    if (!confirm("정말로 수업을 종료하시겠습니까?")) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await apiService.endSession(currentSession.id);
+      toast.success("수업이 종료되었습니다");
+      handleSessionEnded();
+      setTimeout(() => {
+        setCurrentSession(null);
+        setParticipants([]);
+        setSelectedLectureIds([]);
+      }, 1000);
+    } catch (error) {
+      toast.error("수업 종료에 실패했습니다");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (initialLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <RefreshCw className="w-8 h-8 animate-spin text-gray-400" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 max-w-6xl">
       <div>
         <h1 className="text-3xl mb-2">수업 시작</h1>
         <p className="text-gray-600">학습 수업을 생성하고 관리하세요</p>
       </div>
+
+      {/* Active Sessions Alert */}
+      {!currentSession && activeSessions.length > 0 && (
+        <Card className="border-2 border-yellow-400 bg-yellow-50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-yellow-700">
+              <Play className="w-5 h-5" />
+              진행 중인 수업이 있습니다
+            </CardTitle>
+            <CardDescription className="text-yellow-600">
+              아래 수업을 선택하여 계속 진행하거나, 종료 후 새 수업을 시작할 수 있습니다.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {activeSessions.map((session) => (
+              <div
+                key={session.id}
+                className="flex items-center justify-between p-4 bg-white rounded-lg border"
+              >
+                <div className="flex items-center gap-4">
+                  <div>
+                    <p className="font-medium">{session.title}</p>
+                    <p className="text-sm text-gray-500">
+                      코드: <span className="font-mono font-bold">{session.code}</span>
+                      {session.participantCount !== undefined && (
+                        <span className="ml-2">• 참가자 {session.participantCount}명</span>
+                      )}
+                    </p>
+                  </div>
+                  {getStatusBadge(session.status)}
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleSelectActiveSession(session)}
+                    className="gap-2"
+                  >
+                    <Monitor className="w-4 h-4" />
+                    관리하기
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Session Creation */}
       {!currentSession && (
@@ -289,7 +479,7 @@ export function SessionControlPage() {
             onStartSession={handleStartSession}
             onPauseSession={handlePauseSession}
             onResumeSession={handleResumeSession}
-            onEndSession={handleEndSession}
+            onEndSession={handleEndSessionWithCleanup}
             onNextStep={handleNextStep}
             onSwitchLecture={handleSwitchLecture}
             navigate={navigate}
@@ -490,30 +680,82 @@ function ActiveSessionCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Session Code */}
-        <div className="flex items-center justify-between p-6 bg-blue-50 rounded-lg">
-          <div>
-            <p className="text-sm text-gray-600 mb-1">수업 코드</p>
-            <p className="text-4xl tracking-wider">{session.code}</p>
+        {/* Session Code and QR Code */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Session Code */}
+          <div className="flex flex-col justify-between p-6 bg-blue-50 rounded-lg">
+            <div>
+              <p className="text-sm text-gray-600 mb-1">수업 코드</p>
+              <p className="text-4xl font-bold tracking-wider mb-4">{session.code}</p>
+              <p className="text-sm text-gray-500">
+                학생들이 앱에서 이 코드를 입력하면 수업에 참가할 수 있습니다
+              </p>
+            </div>
+            <Button variant="outline" size="lg" onClick={onCopyCode} className="gap-2 mt-4">
+              {copied ? (
+                <>
+                  <CheckCircle2 className="w-5 h-5 text-green-600" />
+                  복사됨
+                </>
+              ) : (
+                <>
+                  <Copy className="w-5 h-5" />
+                  코드 복사
+                </>
+              )}
+            </Button>
           </div>
-          <Button variant="outline" size="lg" onClick={onCopyCode} className="gap-2">
-            {copied ? (
-              <>
-                <CheckCircle2 className="w-5 h-5 text-green-600" />
-                복사됨
-              </>
-            ) : (
-              <>
-                <Copy className="w-5 h-5" />
-                복사
-              </>
-            )}
-          </Button>
+
+          {/* QR Code */}
+          <div className="flex flex-col items-center justify-center p-6 bg-white rounded-lg border-2 border-dashed border-gray-300">
+            <div className="mb-3 session-qr-code">
+              <QRCodeSVG
+                value={`mobilegpt://join/${session.code}`}
+                size={180}
+                level="M"
+                includeMargin={true}
+              />
+            </div>
+            <p className="text-sm text-gray-600 text-center mb-3">
+              <QrCode className="w-4 h-4 inline mr-1" />
+              QR 코드를 스캔하여 참가
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const svg = document.querySelector('.session-qr-code svg');
+                if (svg) {
+                  const svgData = new XMLSerializer().serializeToString(svg);
+                  const canvas = document.createElement('canvas');
+                  const ctx = canvas.getContext('2d');
+                  const img = new Image();
+                  img.onload = () => {
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    ctx?.drawImage(img, 0, 0);
+                    const pngFile = canvas.toDataURL('image/png');
+                    const downloadLink = document.createElement('a');
+                    downloadLink.download = `session-${session.code}-qr.png`;
+                    downloadLink.href = pngFile;
+                    downloadLink.click();
+                    toast.success('QR 코드가 다운로드되었습니다');
+                  };
+                  img.src = 'data:image/svg+xml;base64,' + btoa(svgData);
+                }
+              }}
+              className="gap-2"
+            >
+              <Download className="w-4 h-4" />
+              QR 다운로드
+            </Button>
+          </div>
         </div>
 
         <Alert>
           <AlertDescription>
-            학생들에게 위 코드를 공유하세요. 학생들이 앱에서 이 코드를 입력하면 수업에 참가할 수 있습니다.
+            학생들은 <strong>QR 코드 스캔</strong> 또는 <strong>코드 입력</strong> 두 가지 방법으로 수업에 참가할 수 있습니다.
+            앱 미설치 시 자동으로 앱 설치 페이지로 안내됩니다.
           </AlertDescription>
         </Alert>
 

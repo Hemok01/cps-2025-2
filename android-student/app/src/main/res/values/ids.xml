@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Floating Overlay View IDs -->
+    <item name="overlay_progress_text" type="id" />
+    <item name="overlay_title_text" type="id" />
+    <item name="overlay_status_dot" type="id" />
+    <item name="overlay_expanded_view" type="id" />
+    <item name="overlay_full_title" type="id" />
+    <item name="overlay_progress_bar" type="id" />
+</resources>

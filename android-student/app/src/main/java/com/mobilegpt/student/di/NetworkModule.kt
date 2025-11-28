@@ -4,13 +4,10 @@ import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.mobilegpt.student.BuildConfig
 import com.mobilegpt.student.data.api.AuthApi
+import com.mobilegpt.student.data.api.ScreenshotApi
 import com.mobilegpt.student.data.api.StudentApi
-import com.mobilegpt.student.data.api.WebSocketApi
 import com.mobilegpt.student.data.local.TokenPreferences
-import com.tinder.scarlet.Scarlet
-import com.tinder.scarlet.messageadapter.gson.GsonMessageAdapter
-import com.tinder.scarlet.retry.LinearBackoffStrategy
-import com.tinder.scarlet.websocket.okhttp.newWebSocketFactory
+import com.mobilegpt.student.data.websocket.WebSocketManager
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -40,20 +37,46 @@ object NetworkModule {
     }
 
     /**
+     * 인증이 필요 없는 엔드포인트 목록
+     * 이 경로들은 Authorization 헤더를 첨부하지 않습니다.
+     */
+    private val NO_AUTH_ENDPOINTS = listOf(
+        "sessions/join/",               // 익명 세션 참가
+        "logs/activity/anonymous/",     // 익명 Activity Log
+        "screenshots/upload/",          // 익명 스크린샷 업로드
+        "auth/register/",               // 회원가입
+        "auth/login/",                  // 로그인
+        "auth/token/"                   // 토큰 발급
+    )
+
+    /**
      * 인증 인터셉터
+     * 익명 엔드포인트는 Authorization 헤더를 첨부하지 않습니다.
      */
     @Provides
     @Singleton
     fun provideAuthInterceptor(tokenPreferences: TokenPreferences): Interceptor {
         return Interceptor { chain ->
             val request = chain.request()
-            val token = tokenPreferences.getAccessToken()
+            val path = request.url.encodedPath
 
-            val newRequest = if (token != null) {
-                request.newBuilder()
-                    .addHeader("Authorization", "Bearer $token")
-                    .build()
+            // 인증이 필요 없는 엔드포인트인지 확인
+            val isNoAuthEndpoint = NO_AUTH_ENDPOINTS.any { endpoint ->
+                path.contains(endpoint)
+            }
+
+            val newRequest = if (!isNoAuthEndpoint) {
+                // 인증이 필요한 엔드포인트: 토큰이 있으면 첨부
+                val token = tokenPreferences.getAccessToken()
+                if (token != null) {
+                    request.newBuilder()
+                        .addHeader("Authorization", "Bearer $token")
+                        .build()
+                } else {
+                    request
+                }
             } else {
+                // 익명 엔드포인트: 토큰을 첨부하지 않음
                 request
             }
 
@@ -110,21 +133,21 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideWebSocketApi(
+    fun provideScreenshotApi(retrofit: Retrofit): ScreenshotApi {
+        return retrofit.create(ScreenshotApi::class.java)
+    }
+
+    /**
+     * WebSocket Manager 제공
+     * 동적으로 세션 코드에 맞는 WebSocket 연결을 관리합니다.
+     */
+    @Provides
+    @Singleton
+    fun provideWebSocketManager(
         okHttpClient: OkHttpClient,
         gson: Gson
-    ): WebSocketApi {
-        // WebSocket URL은 동적으로 설정될 수 있도록 수정 필요
-        // 현재는 임시 URL 사용
-        val baseWsUrl = BuildConfig.WS_BASE_URL
-
-        val scarlet = Scarlet.Builder()
-            .webSocketFactory(okHttpClient.newWebSocketFactory("$baseWsUrl/session/test/"))
-            .addMessageAdapterFactory(GsonMessageAdapter.Factory(gson))
-            //.addStreamAdapterFactory(CoroutinesStreamAdapterFactory())  // 이 줄
-            .backoffStrategy(LinearBackoffStrategy(5000))
-            .build()
-        return scarlet.create(WebSocketApi::class.java)
+    ): WebSocketManager {
+        return WebSocketManager(okHttpClient, gson)
     }
 }
 

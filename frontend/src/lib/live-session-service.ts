@@ -132,10 +132,13 @@ export const liveSessionService = {
   mapSessionStatus(backendStatus: string): 'CREATED' | 'ACTIVE' | 'PAUSED' | 'ENDED' {
     const statusMap: Record<string, 'CREATED' | 'ACTIVE' | 'PAUSED' | 'ENDED'> = {
       'WAITING': 'CREATED',
+      'CREATED': 'CREATED',
       'ACTIVE': 'ACTIVE',
+      'IN_PROGRESS': 'ACTIVE',
       'PAUSED': 'PAUSED',
       'ENDED': 'ENDED',
-      'CREATED': 'CREATED',
+      'REVIEW_MODE': 'ENDED',
+      'COMPLETED': 'ENDED',
     };
     return statusMap[backendStatus] || 'CREATED';
   },
@@ -143,14 +146,27 @@ export const liveSessionService = {
   async getStudentList(sessionId: number): Promise<StudentListItem[]> {
     try {
       const response = await apiClient.get(`/sessions/${sessionId}/participants/`);
-      const participants = response.data;
-      return participants.map((participant: any, index: number) => ({
-        id: participant.user?.id || participant.id,
-        name: participant.user?.name || participant.name,
-        avatarUrl: participant.user?.avatar_url || participant.avatar_url,
-        isSelected: index === 0, // First student is selected by default
-        status: participant.is_active ? 'active' : 'inactive',
-      }));
+      // API returns { session_id, participants, total_count }
+      const participants = response.data.participants || response.data;
+
+      return participants.map((participant: any, index: number) => {
+        // Determine status: help_needed > active > inactive
+        let status: 'active' | 'inactive' | 'help_needed' = 'inactive';
+
+        if (participant.has_pending_help_request) {
+          status = 'help_needed';
+        } else if (participant.is_active || participant.status === 'ACTIVE' || participant.status === 'WAITING') {
+          status = 'active';
+        }
+
+        return {
+          id: participant.user?.id || participant.id,
+          name: participant.name || participant.user?.name || participant.display_name || '익명',
+          avatarUrl: participant.user?.avatar_url || participant.avatar_url,
+          isSelected: index === 0, // First student is selected by default
+          status,
+        };
+      });
     } catch (error) {
       console.error('Failed to fetch student list:', error);
       return [];
@@ -158,15 +174,50 @@ export const liveSessionService = {
   },
 
   async getProgressData(sessionId: number): Promise<ProgressData[]> {
-    // 목 데이터 유지 (백엔드에 그룹별 통계 API가 없을 수 있음)
-    await delay(200);
-    return mockProgressData;
+    try {
+      const response = await apiClient.get(`/dashboard/sessions/${sessionId}/progress-stats/`);
+      const data = response.data;
+
+      // progress_data를 ProgressData 형식으로 변환
+      if (data.progress_data && Array.isArray(data.progress_data)) {
+        return data.progress_data.map((item: any) => ({
+          userId: item.user_id || item.device_id,
+          username: item.username,
+          currentSubtask: item.current_subtask?.title || null,
+          progressPercentage: item.progress_percentage,
+          completedSubtasks: item.current_subtask?.order_index || 0,
+          status: item.status,
+        }));
+      }
+
+      return [];
+    } catch (error) {
+      console.error('Failed to fetch progress data:', error);
+      // API 실패 시 목 데이터 반환
+      return mockProgressData;
+    }
   },
 
   async getGroupProgress(sessionId: number): Promise<GroupProgress[]> {
-    // 목 데이터 유지 (백엔드에 그룹 기능이 없을 수 있음)
-    await delay(200);
-    return mockGroupProgress;
+    try {
+      const response = await apiClient.get(`/dashboard/sessions/${sessionId}/progress-stats/`);
+      const data = response.data;
+
+      // groups를 GroupProgress 형식으로 변환
+      if (data.groups && Array.isArray(data.groups)) {
+        return data.groups.map((group: any) => ({
+          groupName: group.name,
+          studentCount: group.count,
+          averageProgress: group.percentage,
+        }));
+      }
+
+      return [];
+    } catch (error) {
+      console.error('Failed to fetch group progress:', error);
+      // API 실패 시 목 데이터 반환
+      return mockGroupProgress;
+    }
   },
 
   async getNotifications(sessionId: number): Promise<LiveNotification[]> {
@@ -189,25 +240,109 @@ export const liveSessionService = {
     }
   },
 
-  async getStudentScreen(studentId: number): Promise<StudentScreen> {
-    // 목 데이터 유지 (백엔드 API 없음 - 학생 화면 조회 기능)
-    await delay(500);
+  async getStudentScreen(studentId: number, sessionId: number): Promise<StudentScreen> {
+    // Validate parameters
+    if (!sessionId || isNaN(sessionId) || !studentId || isNaN(studentId)) {
+      console.warn('getStudentScreen called with invalid params:', { studentId, sessionId });
+      return {
+        studentId: studentId || 0,
+        studentName: '',
+        imageUrl: undefined,
+        lastUpdated: new Date().toISOString(),
+        isLoading: false,
+        error: '잘못된 요청입니다',
+      };
+    }
 
-    return {
-      studentId,
-      studentName: `학생${studentId}`,
-      imageUrl: undefined,
-      lastUpdated: new Date().toISOString(),
-      isLoading: false,
-    };
+    try {
+      const response = await apiClient.get(`/sessions/${sessionId}/screenshots/${studentId}/`);
+      const data = response.data;
+
+      return {
+        studentId,
+        studentName: data.participant_name || `학생${studentId}`,
+        imageUrl: data.image_url,
+        lastUpdated: data.captured_at || new Date().toISOString(),
+        isLoading: false,
+      };
+    } catch (error: any) {
+      // 404는 스크린샷이 아직 없는 경우 (정상)
+      if (error.response?.status === 404) {
+        return {
+          studentId,
+          studentName: `학생${studentId}`,
+          imageUrl: undefined,
+          lastUpdated: new Date().toISOString(),
+          isLoading: false,
+          error: '스크린샷이 아직 없습니다',
+        };
+      }
+      console.error('Failed to fetch student screen:', error);
+      return {
+        studentId,
+        studentName: `학생${studentId}`,
+        imageUrl: undefined,
+        lastUpdated: new Date().toISOString(),
+        isLoading: false,
+        error: '화면을 불러올 수 없습니다',
+      };
+    }
   },
 
-  async startSession(sessionId: number): Promise<LiveSessionData> {
+  async getStudentScreenByDeviceId(sessionId: number, deviceId: string): Promise<StudentScreen> {
     try {
-      await apiClient.post(`/sessions/${sessionId}/start/`, {
-        first_subtask_id: 1,
+      const response = await apiClient.get(`/sessions/${sessionId}/screenshots/by-device/${deviceId}/`);
+      const data = response.data;
+
+      return {
+        studentId: data.participant?.id || 0,
+        studentName: data.participant_name || `익명-${deviceId.substring(0, 8)}`,
+        imageUrl: data.image_url,
+        lastUpdated: data.captured_at || new Date().toISOString(),
+        isLoading: false,
+      };
+    } catch (error) {
+      console.error('Failed to fetch student screen by device ID:', error);
+      return {
+        studentId: 0,
+        studentName: `익명-${deviceId.substring(0, 8)}`,
+        imageUrl: undefined,
+        lastUpdated: new Date().toISOString(),
+        isLoading: false,
+        error: '화면을 불러올 수 없습니다',
+      };
+    }
+  },
+
+  async getAllStudentScreenshots(sessionId: number): Promise<StudentScreen[]> {
+    try {
+      const response = await apiClient.get(`/sessions/${sessionId}/screenshots/`);
+      const screenshots = response.data;
+
+      return screenshots.map((screenshot: any) => ({
+        studentId: screenshot.participant_id || 0,
+        studentName: screenshot.participant_name || `익명`,
+        imageUrl: screenshot.image_url,
+        lastUpdated: screenshot.captured_at || new Date().toISOString(),
+        isLoading: false,
+        deviceId: screenshot.device_id,
+      }));
+    } catch (error) {
+      console.error('Failed to fetch all student screenshots:', error);
+      return [];
+    }
+  },
+
+  async startSession(sessionId: number, firstSubtaskId?: number): Promise<LiveSessionData> {
+    try {
+      // first_subtask_id가 없으면 백엔드에서 자동으로 첫 번째 subtask를 찾아 사용
+      const requestData: Record<string, any> = {
         message: '수업을 시작합니다'
-      });
+      };
+      if (firstSubtaskId) {
+        requestData.first_subtask_id = firstSubtaskId;
+      }
+      await apiClient.post(`/sessions/${sessionId}/start/`, requestData);
       return await this.getSessionData(sessionId);
     } catch (error) {
       console.error('Failed to start session:', error);
@@ -258,9 +393,16 @@ export const liveSessionService = {
   },
 
   async switchLecture(sessionId: number, lectureId: number): Promise<LiveSessionData> {
-    // 목 데이터 유지 (백엔드 API 없음 - 세션 강의 전환)
-    await delay(300);
-    return await this.getSessionData(sessionId);
+    try {
+      await apiClient.post(`/sessions/${sessionId}/switch-lecture/`, {
+        lecture_id: lectureId
+      });
+      // 강의 전환 후 세션 데이터 다시 조회
+      return await this.getSessionData(sessionId);
+    } catch (error) {
+      console.error('Failed to switch lecture:', error);
+      throw error;
+    }
   },
 
   async resolveNotification(notificationId: number): Promise<void> {

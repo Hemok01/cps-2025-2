@@ -16,18 +16,20 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.mobilegpt.student.presentation.viewmodel.SessionState
+import com.mobilegpt.student.data.websocket.WebSocketConnectionState
 import com.mobilegpt.student.presentation.viewmodel.SessionViewModel
 
 /**
- * Session Screen
+ * Session Screen (Legacy)
+ * 기존 호환성을 위해 유지되는 화면입니다.
+ * 새로운 플로우에서는 SessionActiveScreen을 사용합니다.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SessionScreen(
     viewModel: SessionViewModel = hiltViewModel()
 ) {
-    val sessionState by viewModel.sessionState.collectAsState()
+    val connectionState by viewModel.connectionState.collectAsState()
     val messages by viewModel.messages.collectAsState()
     val listState = rememberLazyListState()
 
@@ -45,15 +47,16 @@ fun SessionScreen(
                     Column {
                         Text("세션 진행 중")
                         Text(
-                            text = when (sessionState) {
-                                SessionState.Connected -> "연결됨 ●"
-                                SessionState.Disconnected -> "연결 끊김 ○"
-                                is SessionState.Error -> "오류"
-                                SessionState.Idle -> "대기 중"
+                            text = when (connectionState) {
+                                WebSocketConnectionState.CONNECTED -> "연결됨 ●"
+                                WebSocketConnectionState.CONNECTING -> "연결 중..."
+                                WebSocketConnectionState.DISCONNECTED -> "연결 끊김 ○"
+                                WebSocketConnectionState.ERROR -> "오류"
                             },
                             fontSize = 12.sp,
-                            color = when (sessionState) {
-                                SessionState.Connected -> MaterialTheme.colorScheme.primary
+                            color = when (connectionState) {
+                                WebSocketConnectionState.CONNECTED -> MaterialTheme.colorScheme.primary
+                                WebSocketConnectionState.CONNECTING -> MaterialTheme.colorScheme.tertiary
                                 else -> MaterialTheme.colorScheme.error
                             }
                         )
@@ -83,7 +86,7 @@ fun SessionScreen(
                     }
 
                     Button(
-                        onClick = { viewModel.notifyStepComplete(4) },
+                        onClick = { viewModel.completeCurrentStep() },
                         modifier = Modifier.weight(1f)
                     ) {
                         Icon(
@@ -126,7 +129,7 @@ fun SessionScreen(
                     modifier = Modifier.padding(16.dp)
                 ) {
                     Text(
-                        text = "환영합니다, ${viewModel.getUserName()}님!",
+                        text = "세션에 참여 중입니다",
                         fontSize = 18.sp,
                         style = MaterialTheme.typography.titleMedium
                     )

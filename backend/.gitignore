@@ -67,3 +67,6 @@ celerybeat.pid
 # Logs
 /logs/
 *.log
+
+# APK files
+/static/downloads/*.apk

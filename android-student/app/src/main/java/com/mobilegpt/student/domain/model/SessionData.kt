@@ -10,13 +10,10 @@ data class SessionData(
     val id: Int,
 
     @SerializedName("lecture")
-    val lecture: Int?,
+    val lecture: LectureInfo?,
 
-    @SerializedName("lecture_title")
-    val lectureTitle: String?,
-
-    @SerializedName("instructor_name")
-    val instructorName: String?,
+    @SerializedName("instructor")
+    val instructor: InstructorInfo?,
 
     @SerializedName("title")
     val title: String,
@@ -28,22 +25,72 @@ data class SessionData(
     val status: String,
 
     @SerializedName("current_subtask")
-    val currentSubtask: Int?,
+    val currentSubtask: SubtaskDetail?,
 
-    @SerializedName("current_subtask_detail")
+    @SerializedName("currentSubtaskDetail")
     val currentSubtaskDetail: SubtaskDetail?,
 
+    @SerializedName("subtasks")
+    val subtasks: List<SubtaskInfo>? = null,
+
+    @SerializedName("total_steps")
+    val totalSteps: Int? = null,
+
     @SerializedName("my_status")
-    val myStatus: String?,
+    val myStatus: String? = null,
 
     @SerializedName("scheduled_at")
-    val scheduledAt: String?,
+    val scheduledAt: String? = null,
 
     @SerializedName("started_at")
-    val startedAt: String?,
+    val startedAt: String? = null,
 
     @SerializedName("ended_at")
-    val endedAt: String?
+    val endedAt: String? = null
+) {
+    // 편의 속성: 강의 제목
+    val lectureTitle: String?
+        get() = lecture?.title
+
+    // 편의 속성: 강사 이름
+    val instructorName: String?
+        get() = instructor?.name
+}
+
+/**
+ * 강의 정보
+ */
+data class LectureInfo(
+    @SerializedName("id")
+    val id: Int,
+
+    @SerializedName("title")
+    val title: String
+)
+
+/**
+ * 강사 정보
+ */
+data class InstructorInfo(
+    @SerializedName("id")
+    val id: Int,
+
+    @SerializedName("name")
+    val name: String
+)
+
+/**
+ * 서브태스크 간단 정보 (목록용)
+ */
+data class SubtaskInfo(
+    @SerializedName("id")
+    val id: Int,
+
+    @SerializedName("title")
+    val title: String,
+
+    @SerializedName("order_index")
+    val orderIndex: Int
 )
 
 /**
@@ -54,23 +101,26 @@ data class SubtaskDetail(
     val id: Int,
 
     @SerializedName("task")
-    val task: Int,
+    val task: Int? = null,
 
     @SerializedName("task_title")
-    val taskTitle: String?,
+    val taskTitle: String? = null,
 
     @SerializedName("title")
     val title: String,
 
     @SerializedName("description")
-    val description: String,
+    val description: String? = null,
 
     @SerializedName("order")
-    val order: Int,
+    val order: Int? = null,
+
+    @SerializedName("order_index")
+    val orderIndex: Int? = null,
 
     @SerializedName("target_app")
-    val targetApp: String?,
+    val targetApp: String? = null,
 
     @SerializedName("target_action")
-    val targetAction: String?
+    val targetAction: String? = null
 )

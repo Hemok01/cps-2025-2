@@ -9,10 +9,14 @@ from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
 )
+from core.views import assetlinks
 
 urlpatterns = [
     # Admin
     path('admin/', admin.site.urls),
+
+    # Android App Links verification
+    path('.well-known/assetlinks.json', assetlinks, name='assetlinks'),
 
     # Health Check (no authentication required)
     path('api/health/', include('apps.health.urls')),

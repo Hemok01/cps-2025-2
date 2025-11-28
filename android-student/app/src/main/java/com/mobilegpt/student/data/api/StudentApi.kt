@@ -10,9 +10,9 @@ import retrofit2.http.*
 interface StudentApi {
 
     /**
-     * 세션 참가
+     * 세션 참가 (익명)
      */
-    @POST("students/sessions/join/")
+    @POST("sessions/join/")
     suspend fun joinSession(
         @Body request: JoinSessionRequest
     ): Response<JoinSessionResponse>
@@ -38,9 +38,10 @@ interface StudentApi {
     ): Response<Unit>
 
     /**
-     * Activity Log 전송
+     * Activity Log 전송 (익명 사용자용)
+     * device_id로 사용자를 식별합니다.
      */
-    @POST("logs/activity/")
+    @POST("logs/activity/anonymous/")
     suspend fun sendActivityLog(
         @Body request: ActivityLogRequest
     ): Response<ActivityLogResponse>
@@ -50,26 +51,25 @@ interface StudentApi {
  * Request/Response Models
  */
 data class JoinSessionRequest(
-    val session_code: String
+    val session_code: String,
+    val device_id: String,
+    val name: String
 )
 
 data class JoinSessionResponse(
     val message: String,
     val session: SessionData,
-    val participant: ParticipantData
-)
-
-data class ParticipantData(
-    val id: Int,
-    val status: String,
+    val participant_id: Int,
+    val my_status: String,
     val joined_at: String
 )
 
 /**
- * Activity Log Request
+ * Activity Log Request (익명 사용자용)
  * 백엔드 API 형식에 맞춘 요청 모델
  */
 data class ActivityLogRequest(
+    val device_id: String,  // 익명 사용자 식별용
     val session: Int?,
     val subtask: Int?,
     val event_type: String,
@@ -86,6 +86,7 @@ data class ActivityLogRequest(
  * Activity Log Response
  */
 data class ActivityLogResponse(
-    val log_id: Int,
+    val log_id: Int? = null,
+    val status: String? = null,
     val message: String
 )

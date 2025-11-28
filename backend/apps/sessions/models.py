@@ -97,11 +97,29 @@ class SessionParticipant(models.Model):
         related_name='participants',
         verbose_name='세션'
     )
+    # 인증된 사용자 (선택적 - 익명 참가 지원)
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name='session_participations',
-        verbose_name='사용자'
+        verbose_name='사용자',
+        null=True,
+        blank=True
+    )
+    # 익명 참가자 식별용 필드
+    device_id = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        verbose_name='기기 ID',
+        help_text='익명 참가자의 기기 고유 식별자'
+    )
+    display_name = models.CharField(
+        max_length=100,
+        blank=True,
+        default='',
+        verbose_name='표시 이름',
+        help_text='화면에 표시될 참가자 이름'
     )
     status = models.CharField(
         max_length=20,
@@ -125,16 +143,39 @@ class SessionParticipant(models.Model):
         db_table = 'session_participants'
         verbose_name = '세션 참가자'
         verbose_name_plural = '세션 참가자'
-        unique_together = ['session', 'user']
         indexes = [
             models.Index(fields=['session']),
             models.Index(fields=['user']),
+            models.Index(fields=['device_id']),
             models.Index(fields=['status']),
             models.Index(fields=['last_active_at']),
         ]
+        # 세션당 device_id 또는 user 중 하나로 유니크 (둘 다 가능)
+        constraints = [
+            models.UniqueConstraint(
+                fields=['session', 'device_id'],
+                condition=models.Q(device_id__isnull=False),
+                name='unique_session_device'
+            ),
+            models.UniqueConstraint(
+                fields=['session', 'user'],
+                condition=models.Q(user__isnull=False),
+                name='unique_session_user'
+            ),
+        ]
 
     def __str__(self):
-        return f"{self.user.name} in {self.session.title}"
+        name = self.display_name or (self.user.name if self.user else 'Unknown')
+        return f"{name} in {self.session.title}"
+
+    @property
+    def participant_name(self):
+        """참가자 이름 반환"""
+        if self.display_name:
+            return self.display_name
+        if self.user:
+            return self.user.name
+        return '익명'
 
 
 class SessionStepControl(models.Model):
@@ -186,6 +227,57 @@ class SessionStepControl(models.Model):
 
     def __str__(self):
         return f"{self.session.title} - {self.action} at {self.created_at}"
+
+
+class StudentScreenshot(models.Model):
+    """학생 화면 스크린샷 모델"""
+
+    session = models.ForeignKey(
+        LectureSession,
+        on_delete=models.CASCADE,
+        related_name='screenshots',
+        verbose_name='세션'
+    )
+    participant = models.ForeignKey(
+        'SessionParticipant',
+        on_delete=models.CASCADE,
+        related_name='screenshots',
+        verbose_name='참가자',
+        null=True,
+        blank=True
+    )
+    device_id = models.CharField(
+        max_length=255,
+        blank=True,
+        verbose_name='기기 ID',
+        help_text='익명 참가자 식별용'
+    )
+    image = models.ImageField(
+        upload_to='screenshots/%Y/%m/%d/',
+        verbose_name='스크린샷 이미지'
+    )
+    captured_at = models.DateTimeField(
+        verbose_name='캡처 시각'
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name='업로드 시각'
+    )
+
+    class Meta:
+        db_table = 'student_screenshots'
+        verbose_name = '학생 스크린샷'
+        verbose_name_plural = '학생 스크린샷'
+        indexes = [
+            models.Index(fields=['session', 'participant']),
+            models.Index(fields=['session', 'device_id']),
+            models.Index(fields=['captured_at']),
+        ]
+        ordering = ['-captured_at']
+
+    def __str__(self):
+        name = self.participant.participant_name if self.participant else self.device_id[:8]
+        return f"{name} - {self.captured_at}"
 
 
 class RecordingSession(models.Model):

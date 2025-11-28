@@ -24,7 +24,8 @@ android {
 
         // Backend API URL
         buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:8000/api/\"")
-        buildConfigField("String", "WS_BASE_URL", "\"ws://10.0.2.2:8000/ws/\"")
+        // WebSocket은 Daphne 서버 (포트 8001)로 연결
+        buildConfigField("String", "WS_BASE_URL", "\"ws://10.0.2.2:8001/ws/\"")
     }
 
     buildTypes {
@@ -100,6 +101,7 @@ dependencies {
     implementation("com.tinder.scarlet:websocket-okhttp:0.1.12")
     implementation("com.tinder.scarlet:message-adapter-gson:0.1.12")
     implementation("com.tinder.scarlet:lifecycle-android:0.1.12")
+    implementation("com.tinder.scarlet:stream-adapter-coroutines:0.1.12")  // ReceiveChannel 지원
 
     // Hilt (Dependency Injection)
     implementation("com.google.dagger:hilt-android:2.52")

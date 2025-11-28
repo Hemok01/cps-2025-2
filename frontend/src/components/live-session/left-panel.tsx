@@ -88,38 +88,40 @@ export function LeftPanel({
 
   return (
     <div className="h-full flex flex-col" style={{ width: '300px', backgroundColor: 'white' }}>
-      <ScrollArea className="flex-1">
-        <div className="flex flex-col h-full overflow-y-auto">
-          <LectureInfoCard
-            lectureName={lectureName}
-            lectureDate={lectureDate}
-            instructor={instructor}
-            totalStudents={totalStudents}
-          />
+      <div className="flex-1 min-h-0 overflow-hidden">
+        <ScrollArea className="h-full">
+          <div className="flex flex-col pb-4">
+            <LectureInfoCard
+              lectureName={lectureName}
+              lectureDate={lectureDate}
+              instructor={instructor}
+              totalStudents={totalStudents}
+            />
 
-          <StatusFilterButtons
-            filterType={filterType}
-            onFilterChange={setFilterType}
-            getStatusCount={getStatusCount}
-          />
+            <StatusFilterButtons
+              filterType={filterType}
+              onFilterChange={setFilterType}
+              getStatusCount={getStatusCount}
+            />
 
-          <StudentListCard
-            students={filteredStudents}
-            totalStudents={students.length}
-            selectedStudentId={selectedStudentId}
-            searchQuery={searchQuery}
-            filterType={filterType}
-            sortType={sortType}
-            onSearchChange={setSearchQuery}
-            onFilterChange={setFilterType}
-            onSortChange={setSortType}
-            onStudentSelect={onStudentSelect}
-            onResetFilters={handleResetFilters}
-          />
+            <StudentListCard
+              students={filteredStudents}
+              totalStudents={students.length}
+              selectedStudentId={selectedStudentId}
+              searchQuery={searchQuery}
+              filterType={filterType}
+              sortType={sortType}
+              onSearchChange={setSearchQuery}
+              onFilterChange={setFilterType}
+              onSortChange={setSortType}
+              onStudentSelect={onStudentSelect}
+              onResetFilters={handleResetFilters}
+            />
 
-          <ProgressCard progressData={progressData} />
-        </div>
-      </ScrollArea>
+            <ProgressCard progressData={progressData} />
+          </div>
+        </ScrollArea>
+      </div>
     </div>
   );
 }
@@ -232,7 +234,7 @@ function StudentListCard({
           </Button>
         </div>
       </CardHeader>
-      <CardContent className="pb-0">
+      <CardContent className="pb-4">
         <SearchAndSort
           searchQuery={searchQuery}
           sortType={sortType}

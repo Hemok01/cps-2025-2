@@ -58,13 +58,14 @@ class ActivityLogProducer:
         """Callback for failed message send"""
         logger.error(f"Failed to send message to Kafka: {exc}")
 
-    def send_log(self, log_data: Dict, user_id: int) -> bool:
+    def send_log(self, log_data: Dict, user_id: Optional[int] = None, device_id: Optional[str] = None) -> bool:
         """
         Send a single activity log to Kafka
 
         Args:
             log_data: Activity log data dictionary
-            user_id: User ID for logging purposes
+            user_id: User ID for logging purposes (optional for anonymous users)
+            device_id: Device ID for anonymous users (optional)
 
         Returns:
             bool: True if message was queued successfully, False otherwise
@@ -74,11 +75,12 @@ class ActivityLogProducer:
             return False
 
         try:
-            # Add user_id to log data
-            message_data = {
-                'user_id': user_id,
-                **log_data
-            }
+            # Add user_id or device_id to log data
+            message_data = {**log_data}
+            if user_id is not None:
+                message_data['user_id'] = user_id
+            if device_id is not None:
+                message_data['device_id'] = device_id
 
             # Send message asynchronously with callbacks
             future = self._producer.send(
@@ -90,14 +92,17 @@ class ActivityLogProducer:
             future.add_callback(self._on_send_success)
             future.add_errback(self._on_send_error)
 
-            logger.debug(f"Activity log queued for user {user_id}")
+            identifier = f"user {user_id}" if user_id else f"device {device_id}"
+            logger.debug(f"Activity log queued for {identifier}")
             return True
 
         except KafkaError as e:
-            logger.error(f"Kafka error sending log for user {user_id}: {e}")
+            identifier = f"user {user_id}" if user_id else f"device {device_id}"
+            logger.error(f"Kafka error sending log for {identifier}: {e}")
             return False
         except Exception as e:
-            logger.error(f"Unexpected error sending log for user {user_id}: {e}")
+            identifier = f"user {user_id}" if user_id else f"device {device_id}"
+            logger.error(f"Unexpected error sending log for {identifier}: {e}")
             return False
 
     def send_logs_batch(self, logs_data: List[Dict], user_id: int) -> bool:

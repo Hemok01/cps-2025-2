@@ -18,13 +18,29 @@ class ActivityLog(models.Model):
         ('SCREEN_CHANGE', '화면 전환'),
         ('FOCUS', '포커스'),
         ('SELECTION', '선택'),
+        # Android AccessibilityService 이벤트 타입
+        ('WINDOW_CHANGE', '윈도우 변경'),
+        ('VIEW_CLICKED', '뷰 클릭'),
+        ('VIEW_FOCUSED', '뷰 포커스'),
+        ('VIEW_TEXT_CHANGED', '텍스트 변경'),
+        ('VIEW_SCROLLED', '뷰 스크롤'),
+        ('WINDOW_STATE_CHANGED', '윈도우 상태 변경'),
+        ('WINDOW_CONTENT_CHANGED', '윈도우 콘텐츠 변경'),
     ]
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name='activity_logs',
-        verbose_name='사용자'
+        verbose_name='사용자',
+        null=True,
+        blank=True
+    )
+    device_id = models.CharField(
+        max_length=255,
+        blank=True,
+        verbose_name='기기 ID',
+        help_text='익명 사용자 식별용 기기 고유값'
     )
     subtask = models.ForeignKey(
         Subtask,

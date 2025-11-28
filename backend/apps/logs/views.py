@@ -4,11 +4,11 @@ Activity Log Views
 import logging
 from rest_framework import generics, status
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.views import APIView
 
 from .models import ActivityLog
-from .serializers import ActivityLogSerializer, ActivityLogCreateSerializer
+from .serializers import ActivityLogSerializer, ActivityLogCreateSerializer, AnonymousActivityLogCreateSerializer
 from .kafka_producer import producer
 
 logger = logging.getLogger(__name__)
@@ -114,4 +114,43 @@ class ActivityLogBatchView(APIView):
                 'created_count': len(created_logs),
                 'log_ids': created_logs,
                 'message': f'{len(created_logs)} logs saved directly to database'
+            }, status=status.HTTP_201_CREATED)
+
+
+class AnonymousActivityLogCreateView(APIView):
+    """
+    익명 Activity Log 전송 (수강자 앱용)
+    device_id로 사용자를 식별합니다.
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = AnonymousActivityLogCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        device_id = serializer.validated_data.get('device_id')
+        if not device_id:
+            return Response(
+                {'error': 'device_id가 필요합니다.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Kafka Producer로 메시지 전송
+        log_data = _prepare_kafka_data(serializer.validated_data)
+        kafka_success = producer.send_log(log_data, user_id=None, device_id=device_id)
+
+        if kafka_success:
+            logger.info(f"Anonymous activity log queued to Kafka for device {device_id}")
+            return Response({
+                'status': 'queued',
+                'message': 'Log queued for processing'
+            }, status=status.HTTP_202_ACCEPTED)
+        else:
+            # Kafka 실패 시 DB에 직접 저장
+            logger.warning(f"Kafka unavailable, saving anonymous log directly to DB for device {device_id}")
+            log = serializer.save()
+            return Response({
+                'log_id': log.id,
+                'status': 'saved',
+                'message': 'Log saved directly to database'
             }, status=status.HTTP_201_CREATED)

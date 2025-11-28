@@ -138,3 +138,138 @@ class LectureStatisticsView(APIView):
             'total_help_requests': total_help_requests,
             'common_difficulties': list(common_difficulties)
         })
+
+
+class SessionProgressStatsView(APIView):
+    """
+    세션별 진도 통계 (실시간 모니터링용)
+    GET /api/dashboard/sessions/{session_id}/progress-stats/
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, session_id):
+        from apps.sessions.models import LectureSession
+        from apps.tasks.models import Task, Subtask
+        from django.utils import timezone
+        from datetime import timedelta
+
+        session = get_object_or_404(LectureSession, pk=session_id)
+
+        # 강사 권한 확인
+        if session.instructor != request.user:
+            return Response(
+                {'error': '강사만 세션 진도 통계를 조회할 수 있습니다.'},
+                status=403
+            )
+
+        # 세션의 모든 참가자 조회
+        participants = session.participants.select_related('current_subtask', 'user').all()
+        total_students = participants.count()
+
+        if total_students == 0:
+            return Response({
+                'session_id': session_id,
+                'total_students': 0,
+                'groups': [
+                    {'name': '완료', 'count': 0, 'percentage': 0},
+                    {'name': '진행중', 'count': 0, 'percentage': 0},
+                    {'name': '지연', 'count': 0, 'percentage': 0},
+                    {'name': '미시작', 'count': 0, 'percentage': 0},
+                ],
+                'progress_data': []
+            })
+
+        # 강의의 전체 서브태스크 수 계산
+        total_subtasks = 0
+        if session.lecture:
+            total_subtasks = Subtask.objects.filter(
+                task__lecture=session.lecture
+            ).count()
+
+        # 현재 세션의 현재 단계 order_index 가져오기
+        current_session_step_index = 0
+        if session.current_subtask:
+            current_session_step_index = session.current_subtask.order_index
+
+        # 참가자별 진도 상태 분류
+        completed_count = 0
+        in_progress_count = 0
+        delayed_count = 0
+        not_started_count = 0
+
+        # 지연 판단 기준: 마지막 활동이 5분 이상 전
+        delay_threshold = timezone.now() - timedelta(minutes=5)
+
+        progress_data = []
+        for participant in participants:
+            # 참가자의 현재 단계
+            participant_step_index = 0
+            if participant.current_subtask:
+                participant_step_index = participant.current_subtask.order_index
+
+            # 상태 판단
+            if participant.status == 'COMPLETED':
+                status = 'completed'
+                completed_count += 1
+            elif participant.status == 'WAITING':
+                status = 'not_started'
+                not_started_count += 1
+            elif participant.last_active_at and participant.last_active_at < delay_threshold:
+                # 마지막 활동이 5분 이상 전이면 지연
+                status = 'delayed'
+                delayed_count += 1
+            else:
+                status = 'in_progress'
+                in_progress_count += 1
+
+            # 진행률 계산
+            progress_percentage = 0
+            if total_subtasks > 0:
+                progress_percentage = int((participant_step_index / total_subtasks) * 100)
+
+            progress_data.append({
+                'user_id': participant.user.id if participant.user else None,
+                'device_id': participant.device_id,
+                'username': participant.display_name or (participant.user.name if participant.user else 'Anonymous'),
+                'current_subtask': {
+                    'id': participant.current_subtask.id if participant.current_subtask else None,
+                    'title': participant.current_subtask.title if participant.current_subtask else None,
+                    'order_index': participant.current_subtask.order_index if participant.current_subtask else 0,
+                } if participant.current_subtask else None,
+                'progress_percentage': progress_percentage,
+                'status': status,
+                'last_active_at': participant.last_active_at.isoformat() if participant.last_active_at else None,
+            })
+
+        # 그룹별 비율 계산
+        groups = [
+            {
+                'name': '완료',
+                'count': completed_count,
+                'percentage': int((completed_count / total_students) * 100) if total_students > 0 else 0,
+            },
+            {
+                'name': '진행중',
+                'count': in_progress_count,
+                'percentage': int((in_progress_count / total_students) * 100) if total_students > 0 else 0,
+            },
+            {
+                'name': '지연',
+                'count': delayed_count,
+                'percentage': int((delayed_count / total_students) * 100) if total_students > 0 else 0,
+            },
+            {
+                'name': '미시작',
+                'count': not_started_count,
+                'percentage': int((not_started_count / total_students) * 100) if total_students > 0 else 0,
+            },
+        ]
+
+        return Response({
+            'session_id': session_id,
+            'total_students': total_students,
+            'total_subtasks': total_subtasks,
+            'current_session_step': current_session_step_index,
+            'groups': groups,
+            'progress_data': progress_data,
+        })

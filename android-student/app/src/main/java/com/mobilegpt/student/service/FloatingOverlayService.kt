@@ -1,0 +1,587 @@
+package com.mobilegpt.student.service
+
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.app.Service
+import android.content.Context
+import android.content.Intent
+import android.graphics.PixelFormat
+import android.os.Build
+import android.os.IBinder
+import android.util.Log
+import android.view.Gravity
+import android.view.LayoutInflater
+import android.view.MotionEvent
+import android.view.View
+import android.view.WindowManager
+import android.widget.ImageButton
+import android.widget.LinearLayout
+import android.widget.ProgressBar
+import android.widget.TextView
+import androidx.core.app.NotificationCompat
+import com.mobilegpt.student.R
+import com.mobilegpt.student.data.local.TokenPreferences
+import com.mobilegpt.student.data.websocket.WebSocketManager
+import com.mobilegpt.student.presentation.MainActivity
+import dagger.hilt.android.AndroidEntryPoint
+import dagger.hilt.android.EntryPointAccessors
+import javax.inject.Inject
+
+/**
+ * Floating Overlay Service
+ * 다른 앱 위에 플로팅 버튼을 표시하는 Foreground Service
+ *
+ * 주요 기능:
+ * - 현재 단계 및 진행도 표시
+ * - 완료 버튼
+ * - 도움 요청 버튼
+ * - 드래그로 위치 이동
+ * - 탭으로 확장/축소
+ */
+@AndroidEntryPoint
+class FloatingOverlayService : Service() {
+
+    companion object {
+        private const val TAG = "FloatingOverlayService"
+        private const val NOTIFICATION_CHANNEL_ID = "floating_overlay_channel"
+        private const val NOTIFICATION_ID = 1001
+
+        // Intent Actions
+        const val ACTION_START = "com.mobilegpt.student.ACTION_START_OVERLAY"
+        const val ACTION_STOP = "com.mobilegpt.student.ACTION_STOP_OVERLAY"
+        const val ACTION_UPDATE_PROGRESS = "com.mobilegpt.student.ACTION_UPDATE_PROGRESS"
+        const val ACTION_STEP_COMPLETE = "com.mobilegpt.student.ACTION_STEP_COMPLETE"
+        const val ACTION_HELP_REQUEST = "com.mobilegpt.student.ACTION_HELP_REQUEST"
+
+        // Intent Extras
+        const val EXTRA_CURRENT_STEP = "extra_current_step"
+        const val EXTRA_TOTAL_STEPS = "extra_total_steps"
+        const val EXTRA_STEP_TITLE = "extra_step_title"
+        const val EXTRA_SESSION_CODE = "extra_session_code"
+        const val EXTRA_SUBTASK_ID = "extra_subtask_id"
+
+        /**
+         * 서비스 시작
+         * @param subtaskId 현재 서브태스크 ID (서버 전송용)
+         * @return true if service started, false if permission not granted
+         */
+        fun start(
+            context: Context,
+            sessionCode: String,
+            currentStep: Int,
+            totalSteps: Int,
+            stepTitle: String,
+            subtaskId: Int? = null
+        ): Boolean {
+            // 권한 확인
+            if (!android.provider.Settings.canDrawOverlays(context)) {
+                Log.w(TAG, "Cannot start overlay service: SYSTEM_ALERT_WINDOW permission not granted")
+                return false
+            }
+
+            val intent = Intent(context, FloatingOverlayService::class.java).apply {
+                action = ACTION_START
+                putExtra(EXTRA_SESSION_CODE, sessionCode)
+                putExtra(EXTRA_CURRENT_STEP, currentStep)
+                putExtra(EXTRA_TOTAL_STEPS, totalSteps)
+                putExtra(EXTRA_STEP_TITLE, stepTitle)
+                subtaskId?.let { putExtra(EXTRA_SUBTASK_ID, it) }
+            }
+            context.startForegroundService(intent)
+            return true
+        }
+
+        /**
+         * 서비스 중지
+         */
+        fun stop(context: Context) {
+            val intent = Intent(context, FloatingOverlayService::class.java).apply {
+                action = ACTION_STOP
+            }
+            context.startService(intent)
+        }
+
+        /**
+         * 진행도 업데이트
+         */
+        fun updateProgress(
+            context: Context,
+            currentStep: Int,
+            totalSteps: Int,
+            stepTitle: String,
+            subtaskId: Int? = null
+        ) {
+            val intent = Intent(context, FloatingOverlayService::class.java).apply {
+                action = ACTION_UPDATE_PROGRESS
+                putExtra(EXTRA_CURRENT_STEP, currentStep)
+                putExtra(EXTRA_TOTAL_STEPS, totalSteps)
+                putExtra(EXTRA_STEP_TITLE, stepTitle)
+                subtaskId?.let { putExtra(EXTRA_SUBTASK_ID, it) }
+            }
+            context.startService(intent)
+        }
+
+        /**
+         * 연결 상태 업데이트
+         */
+        fun updateConnectionStatus(context: Context, isConnected: Boolean) {
+            val intent = Intent(context, FloatingOverlayService::class.java).apply {
+                action = "com.mobilegpt.student.ACTION_UPDATE_CONNECTION"
+                putExtra("extra_is_connected", isConnected)
+            }
+            context.startService(intent)
+        }
+    }
+
+    private lateinit var windowManager: WindowManager
+    private var overlayView: View? = null
+    private var isExpanded = false
+
+    // 현재 상태
+    private var currentStep = 1
+    private var totalSteps = 1
+    private var stepTitle = ""
+    private var sessionCode = ""
+    private var subtaskId: Int? = null
+    private var isConnected = true
+
+    // 콜백
+    private var onStepComplete: (() -> Unit)? = null
+    private var onHelpRequest: (() -> Unit)? = null
+
+    // Hilt EntryPoint for accessing dependencies
+    @dagger.hilt.EntryPoint
+    @dagger.hilt.InstallIn(dagger.hilt.components.SingletonComponent::class)
+    interface FloatingOverlayEntryPoint {
+        fun webSocketManager(): WebSocketManager
+        fun tokenPreferences(): TokenPreferences
+    }
+
+    private val entryPoint by lazy {
+        EntryPointAccessors.fromApplication(
+            applicationContext,
+            FloatingOverlayEntryPoint::class.java
+        )
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        createNotificationChannel()
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        when (intent?.action) {
+            ACTION_START -> {
+                sessionCode = intent.getStringExtra(EXTRA_SESSION_CODE) ?: ""
+                currentStep = intent.getIntExtra(EXTRA_CURRENT_STEP, 1)
+                totalSteps = intent.getIntExtra(EXTRA_TOTAL_STEPS, 1)
+                stepTitle = intent.getStringExtra(EXTRA_STEP_TITLE) ?: ""
+                subtaskId = if (intent.hasExtra(EXTRA_SUBTASK_ID)) {
+                    intent.getIntExtra(EXTRA_SUBTASK_ID, -1).takeIf { it >= 0 }
+                } else null
+
+                Log.d(TAG, "Starting overlay: sessionCode=$sessionCode, step=$currentStep/$totalSteps, subtaskId=$subtaskId")
+                startForeground(NOTIFICATION_ID, createNotification())
+                showOverlay()
+            }
+            ACTION_STOP -> {
+                Log.d(TAG, "Stopping overlay")
+                hideOverlay()
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+            }
+            ACTION_UPDATE_PROGRESS -> {
+                currentStep = intent.getIntExtra(EXTRA_CURRENT_STEP, currentStep)
+                totalSteps = intent.getIntExtra(EXTRA_TOTAL_STEPS, totalSteps)
+                stepTitle = intent.getStringExtra(EXTRA_STEP_TITLE) ?: stepTitle
+                if (intent.hasExtra(EXTRA_SUBTASK_ID)) {
+                    subtaskId = intent.getIntExtra(EXTRA_SUBTASK_ID, -1).takeIf { it >= 0 }
+                }
+                Log.d(TAG, "Updating progress: step=$currentStep/$totalSteps, subtaskId=$subtaskId")
+                updateOverlayUI()
+            }
+            ACTION_STEP_COMPLETE -> {
+                performStepComplete()
+            }
+            ACTION_HELP_REQUEST -> {
+                performHelpRequest()
+            }
+            "com.mobilegpt.student.ACTION_UPDATE_CONNECTION" -> {
+                isConnected = intent.getBooleanExtra("extra_is_connected", true)
+                updateConnectionStatus()
+            }
+        }
+        return START_STICKY
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onDestroy() {
+        hideOverlay()
+        super.onDestroy()
+    }
+
+    /**
+     * 알림 채널 생성
+     */
+    private fun createNotificationChannel() {
+        val channel = NotificationChannel(
+            NOTIFICATION_CHANNEL_ID,
+            "강의 진행",
+            NotificationManager.IMPORTANCE_LOW
+        ).apply {
+            description = "강의 진행 상태를 표시합니다"
+            setShowBadge(false)
+        }
+        val manager = getSystemService(NotificationManager::class.java)
+        manager.createNotificationChannel(channel)
+    }
+
+    /**
+     * Foreground Notification 생성
+     */
+    private fun createNotification(): Notification {
+        val pendingIntent = PendingIntent.getActivity(
+            this,
+            0,
+            Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+        return NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
+            .setContentTitle("강의 진행 중")
+            .setContentText("$currentStep/$totalSteps - $stepTitle")
+            .setSmallIcon(android.R.drawable.ic_menu_compass)
+            .setContentIntent(pendingIntent)
+            .setOngoing(true)
+            .setSilent(true)
+            .build()
+    }
+
+    /**
+     * 오버레이 표시
+     */
+    private fun showOverlay() {
+        if (overlayView != null) return
+
+        // 권한 확인
+        if (!android.provider.Settings.canDrawOverlays(this)) {
+            Log.e(TAG, "SYSTEM_ALERT_WINDOW permission not granted! Cannot show overlay.")
+            // 권한이 없으면 서비스 중지
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            return
+        }
+
+        // 오버레이 뷰 생성
+        overlayView = createOverlayView()
+
+        // WindowManager 파라미터 설정
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            x = 50
+            y = 200
+        }
+
+        try {
+            windowManager.addView(overlayView, params)
+            Log.d(TAG, "Overlay shown successfully")
+        } catch (e: WindowManager.BadTokenException) {
+            Log.e(TAG, "Failed to add overlay view: BadTokenException", e)
+            overlayView = null
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to add overlay view", e)
+            overlayView = null
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+        }
+    }
+
+    /**
+     * 오버레이 뷰 생성
+     */
+    private fun createOverlayView(): View {
+        // 프로그래매틱하게 뷰 생성 (XML 리소스 없이)
+        val context = this
+
+        // 메인 컨테이너
+        val container = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(0xE6FFFFFF.toInt()) // 약간 투명한 흰색
+            setPadding(24, 16, 24, 16)
+            elevation = 8f
+        }
+
+        // 축소 상태 뷰 (항상 표시)
+        val collapsedView = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+
+            // 진행률 텍스트
+            val progressText = TextView(context).apply {
+                id = R.id.overlay_progress_text
+                text = "$currentStep/$totalSteps"
+                textSize = 16f
+                setTextColor(0xFF1976D2.toInt())
+                setPadding(0, 0, 16, 0)
+            }
+            addView(progressText)
+
+            // 단계 제목 (짧게)
+            val titleText = TextView(context).apply {
+                id = R.id.overlay_title_text
+                text = stepTitle.take(15) + if (stepTitle.length > 15) "..." else ""
+                textSize = 14f
+                setTextColor(0xFF333333.toInt())
+                maxLines = 1
+            }
+            addView(titleText)
+
+            // 연결 상태 인디케이터
+            val statusDot = View(context).apply {
+                id = R.id.overlay_status_dot
+                setBackgroundColor(0xFF4CAF50.toInt()) // 녹색
+                layoutParams = LinearLayout.LayoutParams(16, 16).apply {
+                    marginStart = 16
+                }
+            }
+            addView(statusDot)
+        }
+        container.addView(collapsedView)
+
+        // 확장 상태 뷰 (탭 시 표시)
+        val expandedView = LinearLayout(context).apply {
+            id = R.id.overlay_expanded_view
+            orientation = LinearLayout.VERTICAL
+            visibility = View.GONE
+            setPadding(0, 16, 0, 0)
+
+            // 상세 제목
+            val fullTitle = TextView(context).apply {
+                id = R.id.overlay_full_title
+                text = stepTitle
+                textSize = 14f
+                setTextColor(0xFF666666.toInt())
+            }
+            addView(fullTitle)
+
+            // 진행률 바
+            val progressBar = ProgressBar(context, null, android.R.attr.progressBarStyleHorizontal).apply {
+                id = R.id.overlay_progress_bar
+                max = totalSteps
+                progress = currentStep
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    topMargin = 8
+                }
+            }
+            addView(progressBar)
+
+            // 버튼 컨테이너
+            val buttonContainer = LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    topMargin = 12
+                }
+
+                // 완료 버튼
+                val completeBtn = android.widget.Button(context).apply {
+                    text = "✓ 완료"
+                    textSize = 12f
+                    setOnClickListener { performStepComplete() }
+                }
+                addView(completeBtn, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+
+                // 도움요청 버튼
+                val helpBtn = android.widget.Button(context).apply {
+                    text = "🆘 도움"
+                    textSize = 12f
+                    setOnClickListener { performHelpRequest() }
+                }
+                addView(helpBtn, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+
+                // 닫기 버튼
+                val closeBtn = android.widget.Button(context).apply {
+                    text = "✕"
+                    textSize = 12f
+                    setOnClickListener { toggleExpanded() }
+                }
+                addView(closeBtn, LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ))
+            }
+            addView(buttonContainer)
+        }
+        container.addView(expandedView)
+
+        // 터치 이벤트 처리 (드래그 + 탭)
+        setupTouchListener(container)
+
+        return container
+    }
+
+    /**
+     * 터치 리스너 설정 (드래그 + 탭)
+     */
+    private fun setupTouchListener(view: View) {
+        var initialX = 0
+        var initialY = 0
+        var initialTouchX = 0f
+        var initialTouchY = 0f
+        var isMoving = false
+
+        view.setOnTouchListener { v, event ->
+            val params = v.layoutParams as WindowManager.LayoutParams
+
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    initialX = params.x
+                    initialY = params.y
+                    initialTouchX = event.rawX
+                    initialTouchY = event.rawY
+                    isMoving = false
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val dx = event.rawX - initialTouchX
+                    val dy = event.rawY - initialTouchY
+
+                    if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+                        isMoving = true
+                        params.x = initialX + dx.toInt()
+                        params.y = initialY + dy.toInt()
+                        windowManager.updateViewLayout(v, params)
+                    }
+                    true
+                }
+                MotionEvent.ACTION_UP -> {
+                    if (!isMoving) {
+                        // 탭 - 확장/축소 토글
+                        toggleExpanded()
+                    }
+                    true
+                }
+                else -> false
+            }
+        }
+    }
+
+    /**
+     * 확장/축소 토글
+     */
+    private fun toggleExpanded() {
+        isExpanded = !isExpanded
+        overlayView?.findViewById<View>(R.id.overlay_expanded_view)?.visibility =
+            if (isExpanded) View.VISIBLE else View.GONE
+    }
+
+    /**
+     * 오버레이 UI 업데이트
+     */
+    private fun updateOverlayUI() {
+        overlayView?.let { view ->
+            view.findViewById<TextView>(R.id.overlay_progress_text)?.text = "$currentStep/$totalSteps"
+            view.findViewById<TextView>(R.id.overlay_title_text)?.text =
+                stepTitle.take(15) + if (stepTitle.length > 15) "..." else ""
+            view.findViewById<TextView>(R.id.overlay_full_title)?.text = stepTitle
+            view.findViewById<ProgressBar>(R.id.overlay_progress_bar)?.apply {
+                max = totalSteps
+                progress = currentStep
+            }
+        }
+
+        // 알림도 업데이트
+        val manager = getSystemService(NotificationManager::class.java)
+        manager.notify(NOTIFICATION_ID, createNotification())
+    }
+
+    /**
+     * 오버레이 숨기기
+     */
+    private fun hideOverlay() {
+        overlayView?.let {
+            windowManager.removeView(it)
+            overlayView = null
+        }
+        Log.d(TAG, "Overlay hidden")
+    }
+
+    /**
+     * 단계 완료 처리
+     */
+    private fun performStepComplete() {
+        val id = subtaskId
+        Log.d(TAG, "Step complete: step=$currentStep, subtaskId=$id")
+
+        if (id == null) {
+            Log.w(TAG, "subtaskId is null, cannot send step complete")
+            // 로컬에서만 단계 증가
+            if (currentStep < totalSteps) {
+                currentStep++
+                updateOverlayUI()
+            }
+            return
+        }
+
+        // WebSocket으로 완료 메시지 전송 (subtask_id 사용)
+        try {
+            entryPoint.webSocketManager().sendStepComplete(id)
+            Log.d(TAG, "Step complete sent for subtaskId=$id")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to send step complete", e)
+        }
+
+        // 로컬 단계 증가 (실제 진행도 업데이트는 서버에서 WebSocket으로 받음)
+        if (currentStep < totalSteps) {
+            currentStep++
+            updateOverlayUI()
+        }
+    }
+
+    /**
+     * 도움 요청 처리
+     */
+    private fun performHelpRequest() {
+        val id = subtaskId
+        Log.d(TAG, "Help requested: step=$currentStep, subtaskId=$id")
+
+        // WebSocket으로 도움 요청 전송 (subtask_id 사용)
+        try {
+            entryPoint.webSocketManager().sendHelpRequest(id)
+            Log.d(TAG, "Help request sent for subtaskId=$id")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to send help request", e)
+        }
+    }
+
+    /**
+     * 연결 상태 UI 업데이트
+     */
+    private fun updateConnectionStatus() {
+        overlayView?.let { view ->
+            val statusDot = view.findViewById<View>(R.id.overlay_status_dot)
+            statusDot?.setBackgroundColor(
+                if (isConnected) 0xFF4CAF50.toInt() else 0xFFFF5722.toInt()  // 연결: 녹색, 끊김: 주황색
+            )
+        }
+    }
+}
