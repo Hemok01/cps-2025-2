@@ -222,17 +222,31 @@ export function LiveSessionPage() {
         break;
 
       case 'help_requested':
+        // Update student status to help_needed
+        const helpData = message.data;
+        setStudents(prev => prev.map(student => {
+          if (student.id === helpData.user_id) {
+            return {
+              ...student,
+              status: 'help_needed' as const,
+            };
+          }
+          return student;
+        }));
+
         // Add new help request notification
         const newNotification: LiveNotification = {
           id: Date.now(), // Temporary ID
           type: 'help_request',
-          studentName: message.data.username,
-          message: message.data.message,
-          timestamp: message.data.timestamp,
-          isRead: false,
+          title: '도움 요청',
+          studentId: helpData.user_id,
+          studentName: helpData.username,
+          message: helpData.message || '',
+          timestamp: helpData.timestamp || new Date().toISOString(),
+          isResolved: false,
         };
         setNotifications(prev => [newNotification, ...prev]);
-        toast.warning(`도움 요청: ${message.data.username}`);
+        toast.warning(`🆘 도움 요청: ${helpData.username}`);
         break;
 
       case 'screenshot_updated':
@@ -491,8 +505,27 @@ export function LiveSessionPage() {
 
   const handleResolveNotification = async (notificationId: number) => {
     try {
+      // Find the notification to get studentId before removing
+      const notification = notifications.find(n => n.id === notificationId);
+
       await liveSessionService.resolveNotification(notificationId);
+
+      // Remove the notification
       setNotifications(prev => prev.filter(n => n.id !== notificationId));
+
+      // Reset student status to active if studentId exists
+      if (notification?.studentId) {
+        setStudents(prev => prev.map(student => {
+          if (student.id === notification.studentId) {
+            return {
+              ...student,
+              status: 'active' as const,
+            };
+          }
+          return student;
+        }));
+      }
+
       toast.success('알림이 해결되었습니다');
     } catch (error) {
       toast.error('알림 해결에 실패했습니다');

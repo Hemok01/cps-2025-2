@@ -32,7 +32,17 @@ class WebSocketClient {
     this.updateStatus('connecting');
 
     // Get JWT token from localStorage for authentication
-    const token = localStorage.getItem('accessToken');
+    // Tokens are stored as JSON object with 'access' and 'refresh' keys
+    let token: string | null = null;
+    const authTokens = localStorage.getItem('auth_tokens');
+    if (authTokens) {
+      try {
+        const tokens = JSON.parse(authTokens);
+        token = tokens.access || null;
+      } catch (e) {
+        console.error('[WebSocket] Failed to parse auth_tokens:', e);
+      }
+    }
 
     // Connect to WebSocket with session code and JWT token
     // Note: Backend expects /ws/sessions/{session_code}/?token={jwt_token}

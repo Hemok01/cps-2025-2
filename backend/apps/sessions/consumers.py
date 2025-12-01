@@ -491,12 +491,21 @@ class SessionConsumer(AsyncWebsocketConsumer):
         if event.get('role_filter') == 'INSTRUCTOR' and self.user.role != 'INSTRUCTOR':
             return
 
+        # Frontend compatibility: data wrapper with consistent field names
         await self.send(text_data=json.dumps({
             'type': 'help_requested',
             'user_id': event['user_id'],
             'user_name': event['user_name'],
             'subtask_id': event['subtask_id'],
-            'message': event['message']
+            'message': event.get('message', ''),
+            # Frontend expects data wrapper with 'username' (not 'user_name')
+            'data': {
+                'user_id': event['user_id'],
+                'username': event['user_name'],
+                'subtask_id': event['subtask_id'],
+                'message': event.get('message', ''),
+                'timestamp': timezone.now().isoformat(),
+            }
         }))
 
     async def instructor_message(self, event):
