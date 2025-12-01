@@ -13,6 +13,7 @@ export type IncomingMessageType =
   | 'participant_joined'
   | 'participant_left'
   | 'progress_updated'
+  | 'student_completion'
   | 'help_requested'
   | 'screenshot_updated'
   | 'error';
@@ -70,6 +71,19 @@ export interface ProgressUpdatedMessage extends BaseIncomingMessage {
   };
 }
 
+export interface StudentCompletionMessage extends BaseIncomingMessage {
+  type: 'student_completion';
+  data: {
+    device_id: string;
+    participant_id: number | null;
+    student_name: string;
+    subtask_id: number;
+    completed_subtasks: number[];
+    total_completed: number;
+    timestamp: string;
+  };
+}
+
 export interface HelpRequestedMessage extends BaseIncomingMessage {
   type: 'help_requested';
   data: {
@@ -106,6 +120,7 @@ export type IncomingMessage =
   | ParticipantJoinedMessage
   | ParticipantLeftMessage
   | ProgressUpdatedMessage
+  | StudentCompletionMessage
   | HelpRequestedMessage
   | ScreenshotUpdatedMessage
   | ErrorMessage;

@@ -5,7 +5,7 @@ import { Progress } from '../ui/progress';
 import { ScrollArea } from '../ui/scroll-area';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
-import { Search, Users, AlertCircle, CheckCircle, XCircle, ArrowUpDown } from 'lucide-react';
+import { Search, Users, AlertCircle, CheckCircle, CheckCircle2, XCircle, ArrowUpDown } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -369,6 +369,8 @@ interface StudentListItemProps {
 }
 
 function StudentListItem({ student, isSelected, onSelect }: StudentListItemProps) {
+  const hasCompletedSteps = student.completedSubtasks && student.completedSubtasks.length > 0;
+
   return (
     <button
       onClick={() => onSelect(student.id)}
@@ -388,9 +390,23 @@ function StudentListItem({ student, isSelected, onSelect }: StudentListItemProps
         <span className="text-sm">👤</span>
       </div>
       <div className="flex-1 min-w-0">
-        <p className="truncate">{student.name}</p>
+        <div className="flex items-center gap-1.5">
+          <p className="truncate">{student.name}</p>
+          {student.currentStepCompleted && (
+            <CheckCircle2
+              className="w-4 h-4 flex-shrink-0"
+              style={{ color: 'var(--success)' }}
+              title="현재 단계 완료"
+            />
+          )}
+        </div>
         {student.status === 'help_needed' && (
           <p className="text-xs" style={{ color: 'var(--error)' }}>도움 요청</p>
+        )}
+        {hasCompletedSteps && !student.status.includes('help') && (
+          <p className="text-xs" style={{ color: 'var(--success)' }}>
+            {student.completedSubtasks!.length}단계 완료
+          </p>
         )}
       </div>
       <div className="flex items-center gap-2">

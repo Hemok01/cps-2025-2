@@ -530,6 +530,25 @@ class SessionConsumer(AsyncWebsocketConsumer):
             }
         }))
 
+    async def student_completion(self, event):
+        """Send student step completion notification to instructors only"""
+        # Only send to instructors (강사 대시보드)
+        if not hasattr(self.user, 'role') or self.user.role != 'INSTRUCTOR':
+            return
+
+        await self.send(text_data=json.dumps({
+            'type': 'student_completion',
+            'data': {
+                'device_id': event.get('device_id'),
+                'participant_id': event.get('participant_id'),
+                'student_name': event.get('student_name'),
+                'subtask_id': event.get('subtask_id'),
+                'completed_subtasks': event.get('completed_subtasks', []),
+                'total_completed': event.get('total_completed', 0),
+                'timestamp': event.get('timestamp'),
+            }
+        }))
+
     # Database queries
     @database_sync_to_async
     def get_session(self):

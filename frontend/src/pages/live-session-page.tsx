@@ -265,6 +265,33 @@ export function LiveSessionPage() {
         }));
         break;
 
+      case 'student_completion':
+        // Handle student step completion notification
+        const completionData = message.data;
+        console.log('[LiveSession] Student completion:', completionData);
+
+        // Update student list with completion status
+        setStudents(prev => prev.map(student => {
+          // Match by participant_id or device_id
+          if (student.id === completionData.participant_id ||
+              student.deviceId === completionData.device_id) {
+            return {
+              ...student,
+              completedSubtasks: completionData.completed_subtasks,
+              currentStepCompleted: true,
+              lastCompletedAt: completionData.timestamp,
+            };
+          }
+          return student;
+        }));
+
+        // Show toast notification
+        toast.success(`${completionData.student_name}님이 단계를 완료했습니다`, {
+          description: `완료된 단계: ${completionData.total_completed}개`,
+          duration: 3000,
+        });
+        break;
+
       case 'error':
         // Handle error messages
         toast.error(`오류: ${message.data.message}`);

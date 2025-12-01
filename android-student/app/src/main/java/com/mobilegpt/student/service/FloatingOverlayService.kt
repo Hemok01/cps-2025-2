@@ -5,17 +5,24 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.graphics.PixelFormat
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.util.Log
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import android.view.animation.AlphaAnimation
+import android.view.animation.AnimationSet
+import android.view.animation.ScaleAnimation
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.ProgressBar
@@ -151,6 +158,24 @@ class FloatingOverlayService : Service() {
     private var onStepComplete: (() -> Unit)? = null
     private var onHelpRequest: (() -> Unit)? = null
 
+    // Handler for UI updates
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    // 완료 피드백 오버레이
+    private var completionFeedbackView: View? = null
+
+    // 자동 완료 이벤트 수신용 BroadcastReceiver
+    private val stepCompletionReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == MobileGPTAccessibilityService.ACTION_STEP_COMPLETED) {
+                val subtaskId = intent.getIntExtra(MobileGPTAccessibilityService.EXTRA_SUBTASK_ID, -1)
+                val subtaskTitle = intent.getStringExtra(MobileGPTAccessibilityService.EXTRA_SUBTASK_TITLE) ?: ""
+                Log.d(TAG, "Received step completion broadcast: id=$subtaskId, title=$subtaskTitle")
+                showCompletionFeedback(subtaskTitle)
+            }
+        }
+    }
+
     // Hilt EntryPoint for accessing dependencies
     @dagger.hilt.EntryPoint
     @dagger.hilt.InstallIn(dagger.hilt.components.SingletonComponent::class)
@@ -170,6 +195,15 @@ class FloatingOverlayService : Service() {
         super.onCreate()
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         createNotificationChannel()
+
+        // 자동 완료 이벤트 수신용 BroadcastReceiver 등록
+        val filter = IntentFilter(MobileGPTAccessibilityService.ACTION_STEP_COMPLETED)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(stepCompletionReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(stepCompletionReceiver, filter)
+        }
+        Log.d(TAG, "Step completion receiver registered")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -221,6 +255,16 @@ class FloatingOverlayService : Service() {
 
     override fun onDestroy() {
         hideOverlay()
+        hideCompletionFeedback()
+
+        // BroadcastReceiver 해제
+        try {
+            unregisterReceiver(stepCompletionReceiver)
+            Log.d(TAG, "Step completion receiver unregistered")
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to unregister receiver", e)
+        }
+
         super.onDestroy()
     }
 
@@ -582,6 +626,132 @@ class FloatingOverlayService : Service() {
             statusDot?.setBackgroundColor(
                 if (isConnected) 0xFF4CAF50.toInt() else 0xFFFF5722.toInt()  // 연결: 녹색, 끊김: 주황색
             )
+        }
+    }
+
+    // ==================== Completion Feedback ====================
+
+    /**
+     * 단계 완료 피드백 표시 (체크마크 애니메이션)
+     */
+    private fun showCompletionFeedback(stepTitle: String = "") {
+        mainHandler.post {
+            try {
+                hideCompletionFeedback()  // 기존 피드백 제거
+
+                // 완료 피드백 뷰 생성
+                completionFeedbackView = createCompletionFeedbackView(stepTitle)
+
+                val params = WindowManager.LayoutParams(
+                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                            WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+                    PixelFormat.TRANSLUCENT
+                ).apply {
+                    gravity = Gravity.CENTER
+                }
+
+                windowManager.addView(completionFeedbackView, params)
+
+                // 애니메이션 실행
+                completionFeedbackView?.startAnimation(createCompletionAnimation())
+
+                // 2초 후 자동 제거
+                mainHandler.postDelayed({
+                    hideCompletionFeedback()
+                }, 2000)
+
+                Log.d(TAG, "Completion feedback shown for: $stepTitle")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to show completion feedback", e)
+            }
+        }
+    }
+
+    /**
+     * 완료 피드백 뷰 생성
+     */
+    private fun createCompletionFeedbackView(stepTitle: String): View {
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setBackgroundColor(0xCC000000.toInt())  // 반투명 검정
+            setPadding(48, 32, 48, 32)
+        }
+
+        // 체크마크 이모지
+        val checkmark = TextView(this).apply {
+            text = "✅"
+            textSize = 64f
+            gravity = Gravity.CENTER
+        }
+        container.addView(checkmark)
+
+        // "완료!" 텍스트
+        val completedText = TextView(this).apply {
+            text = "완료!"
+            textSize = 24f
+            setTextColor(0xFF4CAF50.toInt())  // 녹색
+            gravity = Gravity.CENTER
+            setPadding(0, 16, 0, 0)
+        }
+        container.addView(completedText)
+
+        // 단계 제목 (있는 경우)
+        if (stepTitle.isNotEmpty()) {
+            val titleText = TextView(this).apply {
+                text = stepTitle
+                textSize = 14f
+                setTextColor(0xFFFFFFFF.toInt())  // 흰색
+                gravity = Gravity.CENTER
+                maxLines = 2
+                setPadding(0, 8, 0, 0)
+            }
+            container.addView(titleText)
+        }
+
+        return container
+    }
+
+    /**
+     * 완료 애니메이션 생성 (확대 + 페이드인)
+     */
+    private fun createCompletionAnimation(): AnimationSet {
+        val animSet = AnimationSet(true)
+
+        // 확대 애니메이션 (0.5 -> 1.0)
+        val scaleAnim = ScaleAnimation(
+            0.5f, 1.0f,  // X축
+            0.5f, 1.0f,  // Y축
+            android.view.animation.Animation.RELATIVE_TO_SELF, 0.5f,
+            android.view.animation.Animation.RELATIVE_TO_SELF, 0.5f
+        ).apply {
+            duration = 300
+        }
+        animSet.addAnimation(scaleAnim)
+
+        // 페이드인 애니메이션
+        val alphaAnim = AlphaAnimation(0.0f, 1.0f).apply {
+            duration = 300
+        }
+        animSet.addAnimation(alphaAnim)
+
+        return animSet
+    }
+
+    /**
+     * 완료 피드백 숨기기
+     */
+    private fun hideCompletionFeedback() {
+        completionFeedbackView?.let { view ->
+            try {
+                windowManager.removeView(view)
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to remove completion feedback view", e)
+            }
+            completionFeedbackView = null
         }
     }
 }

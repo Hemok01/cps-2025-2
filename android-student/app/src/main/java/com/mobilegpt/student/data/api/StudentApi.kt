@@ -45,6 +45,16 @@ interface StudentApi {
     suspend fun sendActivityLog(
         @Body request: ActivityLogRequest
     ): Response<ActivityLogResponse>
+
+    /**
+     * 단계 완료 상태 보고 (익명 사용자용)
+     * 학생이 특정 단계를 완료했음을 강사에게 알림
+     */
+    @POST("sessions/{sessionId}/report-completion/")
+    suspend fun reportCompletion(
+        @Path("sessionId") sessionId: Int,
+        @Body request: ReportCompletionRequest
+    ): Response<ReportCompletionResponse>
 }
 
 /**
@@ -89,4 +99,23 @@ data class ActivityLogResponse(
     val log_id: Int? = null,
     val status: String? = null,
     val message: String
+)
+
+/**
+ * 단계 완료 보고 Request
+ */
+data class ReportCompletionRequest(
+    val device_id: String,
+    val subtask_id: Int,
+    val is_completed: Boolean = true,
+    val completed_at: String? = null  // ISO 8601 형식
+)
+
+/**
+ * 단계 완료 보고 Response
+ */
+data class ReportCompletionResponse(
+    val success: Boolean,
+    val message: String,
+    val completed_subtasks: List<Int>? = null  // 전체 완료된 단계 목록
 )

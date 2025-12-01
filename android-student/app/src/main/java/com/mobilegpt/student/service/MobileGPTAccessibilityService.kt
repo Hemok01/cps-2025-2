@@ -2,11 +2,15 @@ package com.mobilegpt.student.service
 
 import android.accessibilityservice.AccessibilityService
 import android.content.Context
+import android.content.Intent
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import com.mobilegpt.student.data.local.SessionPreferences
 import com.mobilegpt.student.data.repository.SessionRepository
+import com.mobilegpt.student.detector.CurrentSignatureHolder
+import com.mobilegpt.student.detector.SignatureExtractor
+import com.mobilegpt.student.detector.StepCompletionChecker
 import com.mobilegpt.student.domain.model.ActivityLog
 import com.mobilegpt.student.domain.model.EventType
 import dagger.hilt.EntryPoint
@@ -27,11 +31,13 @@ import java.util.*
 @InstallIn(SingletonComponent::class)
 interface AccessibilityServiceEntryPoint {
     fun sessionRepository(): SessionRepository
+    fun stepCompletionChecker(): StepCompletionChecker
+    fun sessionPreferencesProvider(): SessionPreferences
 }
 
 /**
  * MobileGPT Accessibility Service
- * UI 이벤트 감지 및 로그 수집
+ * UI 이벤트 감지, 로그 수집, 단계 완료 판단
  */
 class MobileGPTAccessibilityService : AccessibilityService() {
 
@@ -40,28 +46,33 @@ class MobileGPTAccessibilityService : AccessibilityService() {
 
     private lateinit var sessionRepository: SessionRepository
     private lateinit var sessionPreferences: SessionPreferences
+    private lateinit var stepCompletionChecker: StepCompletionChecker
 
     companion object {
         private const val TAG = "MobileGPT_A11y"
         var isRunning = false
             private set
+
+        // FloatingOverlayService로 완료 피드백 전송을 위한 액션
+        const val ACTION_STEP_COMPLETED = "com.mobilegpt.student.STEP_COMPLETED"
+        const val EXTRA_SUBTASK_ID = "subtask_id"
+        const val EXTRA_SUBTASK_TITLE = "subtask_title"
     }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
         isRunning = true
 
-        // Hilt EntryPoint를 통해 Repository 가져오기
+        // Hilt EntryPoint를 통해 의존성 가져오기
         val entryPoint = EntryPointAccessors.fromApplication(
             applicationContext,
             AccessibilityServiceEntryPoint::class.java
         )
         sessionRepository = entryPoint.sessionRepository()
+        stepCompletionChecker = entryPoint.stepCompletionChecker()
+        sessionPreferences = entryPoint.sessionPreferencesProvider()
 
-        // SessionPreferences 초기화
-        sessionPreferences = SessionPreferences(applicationContext)
-
-        Log.d(TAG, "Accessibility Service Connected")
+        Log.d(TAG, "Accessibility Service Connected with Step Completion Checker")
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
@@ -83,6 +94,76 @@ class MobileGPTAccessibilityService : AccessibilityService() {
         serviceScope.launch {
             sendLogToServer(log)
         }
+
+        // [NEW] UI 시그니처 추출 및 단계 완료 체크
+        checkStepCompletion(event, eventType)
+    }
+
+    /**
+     * 단계 완료 여부 확인 및 서버 보고
+     */
+    private fun checkStepCompletion(event: AccessibilityEvent, eventType: String) {
+        // 초기화 확인
+        if (!::stepCompletionChecker.isInitialized || !::sessionPreferences.isInitialized) {
+            return
+        }
+
+        // 세션이 활성화되어 있는지 확인
+        val sessionId = sessionPreferences.getSessionId() ?: return
+        val currentSubtask = sessionPreferences.getCurrentSubtaskDetail() ?: return
+
+        // UI 시그니처 추출
+        val signature = SignatureExtractor.fromEvent(event)
+
+        // 현재 시그니처 상태 업데이트 (버퍼)
+        CurrentSignatureHolder.update(signature, event.eventType)
+
+        Log.d(TAG, "Checking step completion for: ${currentSubtask.title}")
+        Log.d(TAG, "Signature: package=${signature["package"]}, viewId=${signature["viewId"]}")
+
+        // 단계 완료 체크 (비동기)
+        serviceScope.launch {
+            try {
+                val result = stepCompletionChecker.checkCompletion(
+                    currentSubtask = currentSubtask,
+                    signature = signature,
+                    eventType = event.eventType
+                )
+
+                if (result.isCompleted && result.isNewCompletion) {
+                    Log.i(TAG, "Step completed! Reporting to server...")
+
+                    // 서버에 완료 상태 보고
+                    val reportResult = stepCompletionChecker.reportCompletion(
+                        subtaskId = currentSubtask.id,
+                        sessionId = sessionId
+                    )
+
+                    reportResult.onSuccess {
+                        Log.i(TAG, "Completion reported successfully")
+                        // FloatingOverlayService에 완료 알림
+                        notifyStepCompleted(currentSubtask.id, currentSubtask.title)
+                    }.onFailure { error ->
+                        Log.e(TAG, "Failed to report completion: ${error.message}")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error checking step completion", e)
+            }
+        }
+    }
+
+    /**
+     * FloatingOverlayService에 단계 완료 알림
+     */
+    private fun notifyStepCompleted(subtaskId: Int, subtaskTitle: String) {
+        val intent = Intent(ACTION_STEP_COMPLETED).apply {
+            putExtra(EXTRA_SUBTASK_ID, subtaskId)
+            putExtra(EXTRA_SUBTASK_TITLE, subtaskTitle)
+            setPackage(packageName)
+        }
+        sendBroadcast(intent)
+        Log.d(TAG, "Sent step completion broadcast: $subtaskTitle")
     }
 
     override fun onInterrupt() {

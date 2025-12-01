@@ -108,6 +108,48 @@ def broadcast_instructor_message(session_code: str, message: str, instructor_nam
         logger.error(f"Instructor message broadcast failed: {e}", exc_info=True)
 
 
+def broadcast_student_completion(
+    session_code: str,
+    device_id: str,
+    subtask_id: int,
+    student_name: str = '',
+    participant_id: int = None,
+    completed_subtasks: list = None,
+):
+    """
+    WebSocket을 통해 학생의 단계 완료를 강사에게 브로드캐스트
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    try:
+        channel_layer = get_channel_layer()
+        if channel_layer is None:
+            logger.error("Channel layer is None!")
+            return
+
+        group_name = f'session_{session_code}'
+        logger.info(f"Broadcasting student_completion to {group_name}: device={device_id}, subtask={subtask_id}")
+
+        completed_list = completed_subtasks or []
+        async_to_sync(channel_layer.group_send)(
+            group_name,
+            {
+                'type': 'student_completion',
+                'device_id': device_id,
+                'participant_id': participant_id,
+                'student_name': student_name,
+                'subtask_id': subtask_id,
+                'completed_subtasks': completed_list,
+                'total_completed': len(completed_list),
+                'timestamp': timezone.now().isoformat()
+            }
+        )
+        logger.info(f"Student completion broadcast successful to {group_name}")
+    except Exception as e:
+        logger.error(f"Student completion broadcast failed: {e}", exc_info=True)
+
+
 class SessionCreateView(generics.CreateAPIView):
     """강의방 생성 (강사 전용)"""
     serializer_class = LectureSessionCreateSerializer
@@ -867,4 +909,151 @@ class SessionSwitchLectureView(APIView):
             },
             'timestamp': timezone.now().isoformat(),
             'success': True
+        })
+
+
+class ReportCompletionView(APIView):
+    """
+    학생 단계 완료 보고 (익명 사용자용)
+    POST /api/sessions/{session_id}/report-completion/
+
+    Request Body:
+    - device_id: 기기 ID (필수)
+    - subtask_id: 완료한 단계 ID (필수)
+    - is_completed: 완료 여부 (기본: true)
+    - completed_at: 완료 시각 (ISO 8601, 선택)
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request, session_id):
+        import logging
+        logger = logging.getLogger(__name__)
+
+        device_id = request.data.get('device_id')
+        subtask_id = request.data.get('subtask_id')
+        is_completed = request.data.get('is_completed', True)
+        completed_at_str = request.data.get('completed_at')
+
+        # 필수 파라미터 검증
+        if not device_id:
+            return Response(
+                {'success': False, 'message': 'device_id가 필요합니다.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not subtask_id:
+            return Response(
+                {'success': False, 'message': 'subtask_id가 필요합니다.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 세션 조회
+        session = get_object_or_404(LectureSession, pk=session_id)
+
+        # 참가자 조회
+        try:
+            participant = SessionParticipant.objects.get(
+                session=session,
+                device_id=device_id
+            )
+        except SessionParticipant.DoesNotExist:
+            return Response(
+                {'success': False, 'message': '세션 참가자를 찾을 수 없습니다.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Subtask 존재 확인
+        try:
+            subtask = Subtask.objects.get(pk=subtask_id)
+        except Subtask.DoesNotExist:
+            return Response(
+                {'success': False, 'message': '단계를 찾을 수 없습니다.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # 완료된 단계 목록 업데이트
+        completed_list = participant.completed_subtasks or []
+
+        if is_completed:
+            # 완료 추가 (중복 방지)
+            if subtask_id not in completed_list:
+                completed_list.append(subtask_id)
+                participant.completed_subtasks = completed_list
+                participant.last_completed_at = timezone.now()
+                participant.save()
+
+                logger.info(f"Step completion recorded: device={device_id}, subtask={subtask_id}")
+
+                # WebSocket으로 강사에게 브로드캐스트
+                broadcast_student_completion(
+                    session_code=session.session_code,
+                    device_id=device_id,
+                    subtask_id=subtask_id,
+                    student_name=participant.display_name or participant.participant_name,
+                    participant_id=participant.id,
+                    completed_subtasks=completed_list,
+                )
+            else:
+                logger.info(f"Step already completed: device={device_id}, subtask={subtask_id}")
+        else:
+            # 완료 취소
+            if subtask_id in completed_list:
+                completed_list.remove(subtask_id)
+                participant.completed_subtasks = completed_list
+                participant.save()
+                logger.info(f"Step completion removed: device={device_id}, subtask={subtask_id}")
+
+        return Response({
+            'success': True,
+            'message': '단계 완료 상태가 업데이트되었습니다.',
+            'completed_subtasks': participant.completed_subtasks,
+            'last_completed_at': participant.last_completed_at.isoformat() if participant.last_completed_at else None
+        })
+
+
+class SessionCompletionStatusView(APIView):
+    """
+    세션 참가자들의 완료 상태 조회 (강사용)
+    GET /api/sessions/{session_id}/completion-status/
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, session_id):
+        session = get_object_or_404(LectureSession, pk=session_id)
+
+        # 강사 권한 확인
+        if session.instructor != request.user:
+            return Response(
+                {'error': '강사만 완료 상태를 조회할 수 있습니다.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # 참가자 목록과 완료 상태
+        participants = session.participants.all()
+
+        completion_data = []
+        for p in participants:
+            completion_data.append({
+                'device_id': p.device_id,
+                'display_name': p.display_name or p.participant_name,
+                'status': p.status,
+                'completed_subtasks': p.completed_subtasks or [],
+                'completed_count': len(p.completed_subtasks or []),
+                'last_completed_at': p.last_completed_at.isoformat() if p.last_completed_at else None,
+                'current_subtask_id': p.current_subtask.id if p.current_subtask else None
+            })
+
+        # 단계별 완료 통계
+        from collections import Counter
+        all_completed = []
+        for p in participants:
+            all_completed.extend(p.completed_subtasks or [])
+
+        subtask_stats = dict(Counter(all_completed))
+
+        return Response({
+            'session_id': session.id,
+            'total_participants': participants.count(),
+            'participants': completion_data,
+            'subtask_completion_stats': subtask_stats
         })

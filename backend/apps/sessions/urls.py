@@ -18,6 +18,8 @@ from .views import (
     AnonymousSessionJoinView,
     SessionBroadcastView,
     SessionSwitchLectureView,
+    ReportCompletionView,
+    SessionCompletionStatusView,
 )
 from .recordings import RecordingSessionViewSet
 from .screenshot_views import (
@@ -57,6 +59,10 @@ urlpatterns = [
     path('<int:session_id>/current/', SessionCurrentView.as_view(), name='session-current'),
     path('<int:session_id>/broadcast/', SessionBroadcastView.as_view(), name='session-broadcast'),
     path('<int:session_id>/switch-lecture/', SessionSwitchLectureView.as_view(), name='session-switch-lecture'),
+
+    # Step completion endpoints (단계 완료 보고)
+    path('<int:session_id>/report-completion/', ReportCompletionView.as_view(), name='session-report-completion'),
+    path('<int:session_id>/completion-status/', SessionCompletionStatusView.as_view(), name='session-completion-status'),
 
     # Screenshot endpoints (학생 화면 스크린샷)
     path('<int:session_id>/screenshots/', StudentScreenshotListView.as_view(), name='session-screenshots'),

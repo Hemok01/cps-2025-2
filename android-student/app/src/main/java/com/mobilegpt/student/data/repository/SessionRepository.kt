@@ -4,7 +4,11 @@ import com.mobilegpt.student.data.api.ActivityLogRequest
 import com.mobilegpt.student.data.api.ActivityLogResponse
 import com.mobilegpt.student.data.api.JoinSessionRequest
 import com.mobilegpt.student.data.api.JoinSessionResponse
+import com.mobilegpt.student.data.api.ReportCompletionRequest
 import com.mobilegpt.student.data.api.StudentApi
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import com.mobilegpt.student.data.local.TokenPreferences
 import com.mobilegpt.student.data.websocket.WebSocketConnectionState
 import com.mobilegpt.student.data.websocket.WebSocketManager
@@ -230,6 +234,46 @@ class SessionRepository @Inject constructor(
                 Result.success(response.body()!!)
             } else {
                 Result.failure(Exception("Failed to send activity log: ${response.code()}"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // ==================== Step Completion Methods ====================
+
+    private val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.getDefault())
+
+    /**
+     * 단계 완료 상태 서버에 보고
+     *
+     * @param sessionId 세션 ID
+     * @param subtaskId 완료한 단계 ID
+     * @return 성공 여부
+     */
+    suspend fun reportStepCompletion(sessionId: Int, subtaskId: Int): Result<Boolean> {
+        return try {
+            val deviceId = tokenPreferences.getDeviceId()
+                ?: return Result.failure(Exception("Device ID not found"))
+
+            val request = ReportCompletionRequest(
+                device_id = deviceId,
+                subtask_id = subtaskId,
+                is_completed = true,
+                completed_at = dateFormat.format(Date())
+            )
+
+            val response = studentApi.reportCompletion(sessionId, request)
+
+            if (response.isSuccessful && response.body() != null) {
+                val body = response.body()!!
+                if (body.success) {
+                    Result.success(true)
+                } else {
+                    Result.failure(Exception(body.message))
+                }
+            } else {
+                Result.failure(Exception("Failed to report completion: ${response.code()}"))
             }
         } catch (e: Exception) {
             Result.failure(e)

@@ -24,6 +24,10 @@ export interface StudentListItem {
   deviceId?: string;
   hasRecentScreenshot?: boolean;
   lastScreenshotAt?: string;
+  // Step completion tracking
+  completedSubtasks?: number[];
+  currentStepCompleted?: boolean;
+  lastCompletedAt?: string;
 }
 
 export interface ProgressData {

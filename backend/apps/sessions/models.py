@@ -135,6 +135,17 @@ class SessionParticipant(models.Model):
         related_name='participant_progress',
         verbose_name='현재 단계'
     )
+    # 완료된 단계 추적 (JSON Array of subtask IDs)
+    completed_subtasks = models.JSONField(
+        default=list,
+        verbose_name='완료된 단계 목록',
+        help_text='완료한 단계 ID 목록 (JSON Array)'
+    )
+    last_completed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='마지막 완료 시각'
+    )
     joined_at = models.DateTimeField(auto_now_add=True, verbose_name='입장 시각')
     last_active_at = models.DateTimeField(auto_now=True, verbose_name='마지막 활동')
     completed_at = models.DateTimeField(null=True, blank=True, verbose_name='완료 시각')

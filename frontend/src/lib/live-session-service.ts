@@ -425,4 +425,24 @@ export const liveSessionService = {
       throw error;
     }
   },
+
+  async getCompletionStatus(sessionId: number): Promise<{
+    participants: Array<{
+      participant_id: number | null;
+      device_id: string;
+      name: string;
+      completed_subtasks: number[];
+      total_completed: number;
+      last_completed_at: string | null;
+    }>;
+    total_subtasks: number;
+  }> {
+    try {
+      const response = await apiClient.get(`/sessions/${sessionId}/completion-status/`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to fetch completion status:', error);
+      return { participants: [], total_subtasks: 0 };
+    }
+  },
 };
