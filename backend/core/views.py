@@ -1,8 +1,49 @@
 """
 Core views for MobileGPT backend
 """
-from django.http import JsonResponse
+import os
+from django.http import JsonResponse, FileResponse, Http404
 from django.views.decorators.http import require_http_methods
+from django.conf import settings
+
+
+def serve_media_with_cors(request, path):
+    """
+    Serve media files with CORS headers for cross-origin requests.
+
+    This is needed because Django's static() helper doesn't apply
+    CORS middleware to media file responses.
+    """
+    file_path = os.path.join(settings.MEDIA_ROOT, path)
+
+    if not os.path.exists(file_path):
+        raise Http404("File not found")
+
+    # Determine content type based on file extension
+    content_type = 'application/octet-stream'
+    ext = os.path.splitext(path)[1].lower()
+    content_types = {
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.png': 'image/png',
+        '.gif': 'image/gif',
+        '.webp': 'image/webp',
+        '.svg': 'image/svg+xml',
+    }
+    content_type = content_types.get(ext, content_type)
+
+    response = FileResponse(open(file_path, 'rb'), content_type=content_type)
+
+    # Add CORS headers
+    origin = request.headers.get('Origin', '')
+    allowed_origins = getattr(settings, 'CORS_ALLOWED_ORIGINS', [])
+
+    if origin in allowed_origins or settings.DEBUG:
+        response['Access-Control-Allow-Origin'] = origin if origin else '*'
+        response['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+        response['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+
+    return response
 
 
 @require_http_methods(["GET"])

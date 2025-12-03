@@ -183,6 +183,10 @@ CORS_ALLOW_HEADERS = [
     'x-requested-with',
 ]
 
+# Allow CORS for all URLs including media files
+# This regex matches both /api/ and /media/ paths
+CORS_URLS_REGEX = r'^.*$'
+
 # Channels (WebSocket)
 # For development without Redis, use InMemoryChannelLayer
 # For production with Redis, use RedisChannelLayer

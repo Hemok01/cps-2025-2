@@ -143,8 +143,8 @@ function LectureInfoCard({ lectureName, lectureDate, instructor, totalStudents }
   ];
 
   return (
-    <Card className="m-4 mb-2" style={{ borderRadius: 'var(--radius-lg)' }}>
-      <CardHeader className="pb-3">
+    <Card className="m-4 mb-2 gap-2" style={{ borderRadius: 'var(--radius-lg)' }}>
+      <CardHeader className="pb-0">
         <CardTitle className="text-lg">강의 정보</CardTitle>
       </CardHeader>
       <CardContent className="space-y-2 text-sm">

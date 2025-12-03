@@ -58,6 +58,7 @@ export interface LiveNotification {
   studentId?: number;
   studentName?: string;
   isResolved: boolean;
+  screenshotUrl?: string; // 도움 요청 시 캡처한 스크린샷 URL
 }
 
 export interface StudentScreen {

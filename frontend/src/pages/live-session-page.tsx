@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { liveSessionService } from '../lib/live-session-service';
 import { apiService } from '../lib/api-service';
@@ -53,6 +53,8 @@ export function LiveSessionPage() {
   const [notifications, setNotifications] = useState<LiveNotification[]>([]);
   const [studentScreen, setStudentScreen] = useState<StudentScreen | null>(null);
   const [selectedStudentId, setSelectedStudentId] = useState<number | null>(null);
+  // 도움 요청으로 스크린샷이 설정된 경우 API 호출을 스킵하기 위한 ref
+  const skipScreenLoadRef = useRef<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeSessions, setActiveSessions] = useState<Session[]>([]);
   const [wsConnectionInfo, setWsConnectionInfo] = useState<WebSocketConnectionInfo>({
@@ -109,47 +111,19 @@ export function LiveSessionPage() {
     );
   };
 
-  // Setup WebSocket connection after initial data is loaded
-  useEffect(() => {
-    if (sessionData?.sessionCode) {
-      console.log('[LiveSession] Setting up WebSocket for session:', sessionData.sessionCode);
-
-      // Connect to WebSocket
-      wsClient.connect(sessionData.sessionCode);
-
-      // Subscribe to connection status updates
-      const unsubscribeStatus = wsClient.subscribeToStatus((info) => {
-        setWsConnectionInfo(info);
-
-        if (info.status === 'connected') {
-          toast.success('실시간 연결이 설정되었습니다');
-        } else if (info.status === 'error') {
-          toast.error(`연결 오류: ${info.lastError || '알 수 없는 오류'}`);
-        } else if (info.status === 'reconnecting') {
-          toast.info(`재연결 중... (${info.reconnectAttempts}/5)`);
-        }
-      });
-
-      // Subscribe to WebSocket messages
-      const unsubscribeMessages = wsClient.subscribe(handleWebSocketMessage);
-
-      return () => {
-        unsubscribeStatus();
-        unsubscribeMessages();
-      };
+  // 학생 목록 로드 함수 (useCallback으로 분리)
+  const loadStudents = useCallback(async () => {
+    if (!sessionId) return;
+    try {
+      const studentList = await liveSessionService.getStudentList(parseInt(sessionId));
+      setStudents(studentList);
+    } catch (error) {
+      console.error('Failed to load students:', error);
     }
-  }, [sessionData?.sessionCode]);
-
-  // Load student screen when selected
-  useEffect(() => {
-    if (selectedStudentId && sessionId) {
-      loadStudentScreen(selectedStudentId);
-      // Note: Real-time updates will come via WebSocket, no need for polling
-    }
-  }, [selectedStudentId, sessionId]);
+  }, [sessionId]);
 
   // Handle incoming WebSocket messages
-  const handleWebSocketMessage = (message: IncomingMessage) => {
+  const handleWebSocketMessage = useCallback((message: IncomingMessage) => {
     console.log('[LiveSession] Received WebSocket message:', message);
 
     switch (message.type) {
@@ -176,18 +150,14 @@ export function LiveSessionPage() {
         // Add new participant to students list
         toast.success(`${message.data.username}님이 입장했습니다`);
         // Reload student list
-        if (sessionId) {
-          liveSessionService.getStudentList(parseInt(sessionId)).then(setStudents);
-        }
+        loadStudents();
         break;
 
       case 'participant_left':
         // Remove participant from students list
         toast.info(`${message.data.username}님이 퇴장했습니다`);
         // Reload student list
-        if (sessionId) {
-          liveSessionService.getStudentList(parseInt(sessionId)).then(setStudents);
-        }
+        loadStudents();
         break;
 
       case 'progress_updated':
@@ -234,9 +204,11 @@ export function LiveSessionPage() {
           return student;
         }));
 
-        // Add new help request notification
+        // Add new help request notification (스크린샷 URL 포함)
+        // 유니크한 ID 생성: timestamp + random + user_id
+        const notificationId = Date.now() * 1000 + Math.floor(Math.random() * 1000) + (helpData.user_id || 0);
         const newNotification: LiveNotification = {
-          id: Date.now(), // Temporary ID
+          id: notificationId,
           type: 'help_request',
           title: '도움 요청',
           studentId: helpData.user_id,
@@ -244,9 +216,49 @@ export function LiveSessionPage() {
           message: helpData.message || '',
           timestamp: helpData.timestamp || new Date().toISOString(),
           isResolved: false,
+          screenshotUrl: helpData.screenshot_url, // 스크린샷 URL 추가
         };
-        setNotifications(prev => [newNotification, ...prev]);
-        toast.warning(`🆘 도움 요청: ${helpData.username}`);
+        // 중복 알림 방지: 동일한 user_id + 비슷한 시간(5초 이내)의 알림이 있으면 추가하지 않음
+        setNotifications(prev => {
+          const recentDuplicate = prev.find(n =>
+            n.studentId === helpData.user_id &&
+            n.type === 'help_request' &&
+            Math.abs(new Date(n.timestamp).getTime() - Date.now()) < 5000
+          );
+          if (recentDuplicate) {
+            console.log('[LiveSession] Skipping duplicate help request notification');
+            return prev;
+          }
+          return [newNotification, ...prev];
+        });
+
+        // 도움 요청 학생으로 자동 이동 및 스크린샷 표시
+        if (helpData.user_id) {
+          let fullImageUrl: string | undefined;
+
+          // 스크린샷이 있으면 URL 변환
+          if (helpData.screenshot_url) {
+            const backendUrl = import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:8000';
+            fullImageUrl = helpData.screenshot_url.startsWith('http')
+              ? helpData.screenshot_url
+              : `${backendUrl}${helpData.screenshot_url}`;
+          }
+
+          // API 호출 스킵 플래그 설정 (useEffect보다 먼저 실행)
+          skipScreenLoadRef.current = helpData.user_id;
+
+          setStudentScreen({
+            studentId: helpData.user_id,
+            studentName: helpData.username,
+            imageUrl: fullImageUrl,
+            lastUpdated: helpData.timestamp || new Date().toISOString(),
+            isLoading: false,
+            error: fullImageUrl ? undefined : '스크린샷이 전송되지 않았습니다',
+          });
+          setSelectedStudentId(helpData.user_id);
+        }
+
+        toast.warning(`🆘 도움 요청: ${helpData.username}${helpData.screenshot_url ? ' (스크린샷 포함)' : ''}`);
         break;
 
       case 'screenshot_updated':
@@ -314,7 +326,57 @@ export function LiveSessionPage() {
       default:
         console.warn('[LiveSession] Unknown message type:', message.type);
     }
-  };
+  }, [loadStudents, selectedStudentId]);
+
+  // Setup WebSocket connection after initial data is loaded
+  useEffect(() => {
+    if (sessionData?.sessionCode) {
+      console.log('[LiveSession] Setting up WebSocket for session:', sessionData.sessionCode);
+
+      // Connect to WebSocket
+      wsClient.connect(sessionData.sessionCode);
+
+      // Subscribe to connection status updates
+      const unsubscribeStatus = wsClient.subscribeToStatus((info) => {
+        setWsConnectionInfo(info);
+
+        if (info.status === 'connected') {
+          toast.success('실시간 연결이 설정되었습니다');
+        } else if (info.status === 'error') {
+          toast.error(`연결 오류: ${info.lastError || '알 수 없는 오류'}`);
+        } else if (info.status === 'reconnecting') {
+          toast.info(`재연결 중... (${info.reconnectAttempts}/5)`);
+        }
+      });
+
+      // Subscribe to WebSocket messages
+      const unsubscribeMessages = wsClient.subscribe(handleWebSocketMessage);
+
+      return () => {
+        unsubscribeStatus();
+        unsubscribeMessages();
+      };
+    }
+  }, [sessionData?.sessionCode, handleWebSocketMessage]);
+
+  // Load student screen when selected
+  // 도움 요청 등으로 이미 스크린샷이 설정된 경우 API 호출 스킵
+  useEffect(() => {
+    console.log('[LiveSession] useEffect triggered - selectedStudentId:', selectedStudentId, 'sessionId:', sessionId, 'skipRef:', skipScreenLoadRef.current, 'currentScreen:', studentScreen?.studentId, studentScreen?.imageUrl ? 'hasImage' : 'noImage');
+
+    if (selectedStudentId && sessionId) {
+      // skipScreenLoadRef를 통해 도움 요청으로 설정된 스크린샷이 있는지 확인
+      // (closure 문제를 피하기 위해 ref 사용)
+      if (skipScreenLoadRef.current === selectedStudentId) {
+        console.log('[LiveSession] Skipping API call - screenshot set via help request for student:', selectedStudentId);
+        skipScreenLoadRef.current = null; // 다음 선택을 위해 리셋
+        return;
+      }
+      console.log('[LiveSession] Calling loadStudentScreen for:', selectedStudentId);
+      loadStudentScreen(selectedStudentId);
+      // Note: Real-time updates will come via WebSocket, no need for polling
+    }
+  }, [selectedStudentId, sessionId]);
 
   const loadInitialData = async () => {
     if (!sessionId) return;
@@ -350,6 +412,9 @@ export function LiveSessionPage() {
   const loadStudentScreen = async (studentId: number) => {
     if (!sessionId) return;
 
+    // 현재 화면 상태 저장 (API 호출 전)
+    const currentScreen = studentScreen;
+
     try {
       setStudentScreen(prev => prev ? { ...prev, isLoading: true } : {
         studentId,
@@ -359,8 +424,31 @@ export function LiveSessionPage() {
         isLoading: true,
       });
       const screen = await liveSessionService.getStudentScreen(studentId, parseInt(sessionId));
+
+      // API 결과에 이미지가 없고, 현재 같은 학생의 이미지가 있으면 기존 이미지 유지
+      // (도움 요청으로 받은 스크린샷이 DB에 없을 수 있음)
+      if (!screen.imageUrl && currentScreen?.studentId === studentId && currentScreen?.imageUrl) {
+        console.log('[LiveSession] API returned no image, keeping existing screenshot');
+        setStudentScreen({
+          ...currentScreen,
+          isLoading: false,
+          error: undefined,
+        });
+        return;
+      }
+
       setStudentScreen(screen);
     } catch (error) {
+      // 에러 시에도 기존 이미지 유지 시도
+      if (currentScreen?.studentId === studentId && currentScreen?.imageUrl) {
+        console.log('[LiveSession] API error, keeping existing screenshot');
+        setStudentScreen({
+          ...currentScreen,
+          isLoading: false,
+        });
+        return;
+      }
+
       setStudentScreen(prev => prev ? {
         ...prev,
         isLoading: false,

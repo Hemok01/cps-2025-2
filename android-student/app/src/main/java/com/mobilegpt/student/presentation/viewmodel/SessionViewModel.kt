@@ -203,13 +203,30 @@ class SessionViewModel @Inject constructor(
     }
 
     /**
-     * 도움 요청 (메시지 없이 즉시)
+     * 도움 요청 (스크린샷 포함)
+     * 화면을 캡처한 후 WebSocket으로 전송
      */
     fun requestHelp() {
+        val context = getApplication<Application>()
         val subtaskId = sessionPreferences.getSubtaskId()
-        sessionRepository.requestHelp(subtaskId)
-        _helpRequestCount.value += 1
-        addMessage("🆘 도움 요청 ($subtaskId)")
+
+        // 스크린캡처 서비스가 활성화되어 있으면 스크린샷 캡처 후 전송
+        if (ScreenCaptureService.hasMediaProjectionPermission()) {
+            Log.d(TAG, "requestHelp: Capturing screenshot before sending help request")
+            ScreenCaptureService.captureOnce(context) { base64Screenshot ->
+                // 스크린샷 캡처 결과 (성공 또는 null)
+                Log.d(TAG, "requestHelp: Screenshot captured=${base64Screenshot != null}")
+                sessionRepository.requestHelp(subtaskId, base64Screenshot)
+                _helpRequestCount.value += 1
+                addMessage("🆘 도움 요청 (스크린샷 ${if (base64Screenshot != null) "포함" else "없음"})")
+            }
+        } else {
+            // 스크린캡처 권한이 없으면 스크린샷 없이 전송
+            Log.d(TAG, "requestHelp: No screenshot permission, sending without screenshot")
+            sessionRepository.requestHelp(subtaskId, null)
+            _helpRequestCount.value += 1
+            addMessage("🆘 도움 요청 (스크린샷 없음)")
+        }
     }
 
     /**

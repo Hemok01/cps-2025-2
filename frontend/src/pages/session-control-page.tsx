@@ -112,25 +112,24 @@ export function SessionControlPage() {
     }
   };
 
-  // Setup WebSocket for real-time participant updates
-  useEffect(() => {
-    const sessionCode = currentSession?.code || currentSession?.session_code;
-    if (currentSession && sessionCode && currentSession.status !== "ENDED") {
-      console.log('[SessionControl] Setting up WebSocket for session:', sessionCode);
+  const loadLectures = async () => {
+    try {
+      const data = await apiService.getLectures();
+      setLectures(data);
+    } catch (error) {
+      toast.error("강의 목록을 불러오는데 실패했습니다");
+    }
+  };
 
-      // Connect to WebSocket
-      wsClient.connect(sessionCode);
+  // loadParticipants를 먼저 정의 (handleWebSocketMessage에서 참조)
+  const loadParticipants = useCallback(async () => {
+    if (!currentSession) return;
 
-      // Subscribe to WebSocket messages
-      const unsubscribe = wsClient.subscribe(handleWebSocketMessage);
-
-      // Load initial participants
-      loadParticipants();
-
-      return () => {
-        unsubscribe();
-        wsClient.disconnect();
-      };
+    try {
+      const data = await apiService.getSessionParticipants(currentSession.id);
+      setParticipants(data);
+    } catch (error) {
+      console.error("Failed to load participants:", error);
     }
   }, [currentSession]);
 
@@ -165,27 +164,29 @@ export function SessionControlPage() {
         // Ignore other message types for Session Control Page
         break;
     }
-  }, [currentSession]);
+  }, [currentSession, loadParticipants]);
 
-  const loadLectures = async () => {
-    try {
-      const data = await apiService.getLectures();
-      setLectures(data);
-    } catch (error) {
-      toast.error("강의 목록을 불러오는데 실패했습니다");
+  // Setup WebSocket for real-time participant updates
+  useEffect(() => {
+    const sessionCode = currentSession?.code || currentSession?.session_code;
+    if (currentSession && sessionCode && currentSession.status !== "ENDED") {
+      console.log('[SessionControl] Setting up WebSocket for session:', sessionCode);
+
+      // Connect to WebSocket
+      wsClient.connect(sessionCode);
+
+      // Subscribe to WebSocket messages
+      const unsubscribe = wsClient.subscribe(handleWebSocketMessage);
+
+      // Load initial participants
+      loadParticipants();
+
+      return () => {
+        unsubscribe();
+        wsClient.disconnect();
+      };
     }
-  };
-
-  const loadParticipants = useCallback(async () => {
-    if (!currentSession) return;
-
-    try {
-      const data = await apiService.getSessionParticipants(currentSession.id);
-      setParticipants(data);
-    } catch (error) {
-      console.error("Failed to load participants:", error);
-    }
-  }, [currentSession]);
+  }, [currentSession, handleWebSocketMessage, loadParticipants]);
 
   // Generic session action handler
   const executeSessionAction = useCallback(async (

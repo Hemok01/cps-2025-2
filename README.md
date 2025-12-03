@@ -76,8 +76,7 @@ cps 2025-2/
 │           ├── service/       # AccessibilityService
 │           └── di/            # Hilt DI
 │
-├── design/                     # 디자인 문서
-└── docker-compose.yml          # Docker Compose 설정
+└── design/                     # 디자인 문서
 ```
 
 ## 🚀 시작하기
@@ -110,7 +109,8 @@ cps 2025-2/
 # 환경 변수 설정
 cp backend/.env.example backend/.env
 
-# 모든 서비스 시작
+# backend 폴더에서 모든 서비스 시작
+cd backend
 docker-compose up -d
 
 # 로그 확인
@@ -121,9 +121,12 @@ docker-compose exec backend python manage.py createsuperuser
 ```
 
 서비스 접속:
-- **프론트엔드 대시보드**: http://localhost:5173
-- **백엔드 API**: http://localhost:8000/api
-- **Django Admin**: http://localhost:8000/admin
+| 서비스 | URL | 설명 |
+|--------|-----|------|
+| **프론트엔드** | http://localhost:5173 | React 대시보드 |
+| **백엔드 API** | http://localhost:8000/api | REST API |
+| **WebSocket** | ws://localhost:8001/ws | 실시간 통신 (Daphne) |
+| **Django Admin** | http://localhost:8000/admin | 관리자 페이지 |
 
 ### 2. 로컬 개발 (Docker 없이)
 
@@ -172,7 +175,7 @@ npm install
 npm run dev
 ```
 
-프론트엔드: http://localhost:5173
+프론트엔드: http://localhost:3000 (로컬 개발 시)
 
 ### 3. Android 앱 빌드 및 실행
 
@@ -220,8 +223,10 @@ POST /api/sessions/               # 세션 생성 (강사)
 
 ### WebSocket
 ```
-ws://localhost:8000/ws/session/{session_code}/
+ws://localhost:8001/ws/sessions/{session_code}/
 ```
+
+> **참고**: WebSocket은 Daphne 서버(포트 8001)에서 처리됩니다. REST API(포트 8000)와 분리되어 있습니다.
 
 ## 🔑 주요 기술 스택
 
@@ -321,9 +326,10 @@ cd android-student
 ```
 
 ### WebSocket 연결 실패
-- 백엔드 서버가 실행 중인지 확인
+- **포트 확인**: WebSocket은 8001 포트 (Daphne), REST API는 8000 포트
+- Daphne 서버 상태 확인: `docker-compose logs daphne`
 - CORS 설정 확인 (`backend/config/settings.py`)
-- 방화벽 설정 확인
+- Android 에뮬레이터: `ws://10.0.2.2:8001/ws/...` 사용
 
 ## 🔐 보안 고려사항
 

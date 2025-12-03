@@ -289,7 +289,7 @@ function NotificationCard({ notification, onResolve }: NotificationCardProps) {
         </div>
       </div>
       <p className="text-xs mb-2" style={{ color: 'var(--text-secondary)' }}>
-        {notification.message}
+        {notification.message || '도움을 요청했습니다.'}
       </p>
       <div className="flex items-center justify-between">
         <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>

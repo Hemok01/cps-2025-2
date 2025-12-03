@@ -36,13 +36,14 @@ import javax.inject.Inject
 
 /**
  * Screen Capture Service
- * MediaProjection API를 사용하여 30초 주기로 화면을 캡처하고 서버에 업로드하는 Foreground Service
+ * MediaProjection API를 사용하여 화면을 캡처하는 Foreground Service
  *
  * 주요 기능:
  * - MediaProjection을 사용한 전체 화면 캡처
- * - 30초 주기 자동 캡처
+ * - 도움 요청 시 1회성 캡처 (Base64 반환)
  * - JPEG 압축 (30% 품질, ~50KB)
- * - Base64 인코딩 후 서버 업로드
+ *
+ * 변경: 30초 주기 자동 캡처 제거 → 도움 요청 시에만 캡처
  */
 @AndroidEntryPoint
 class ScreenCaptureService : Service() {
@@ -53,12 +54,12 @@ class ScreenCaptureService : Service() {
         private const val NOTIFICATION_ID = 1002
 
         // 캡처 설정
-        const val CAPTURE_INTERVAL_MS = 30_000L  // 30초
         const val JPEG_QUALITY = 30              // 30% 품질
 
         // Intent Actions
         const val ACTION_START = "com.mobilegpt.student.ACTION_START_CAPTURE"
         const val ACTION_STOP = "com.mobilegpt.student.ACTION_STOP_CAPTURE"
+        const val ACTION_CAPTURE_ONCE = "com.mobilegpt.student.ACTION_CAPTURE_ONCE"
 
         // Intent Extras
         const val EXTRA_RESULT_CODE = "extra_result_code"
@@ -124,6 +125,34 @@ class ScreenCaptureService : Service() {
             mediaProjectionResultCode = Activity.RESULT_CANCELED
             mediaProjectionResultData = null
         }
+
+        // 1회성 캡처 결과 콜백
+        private var captureCallback: ((String?) -> Unit)? = null
+
+        /**
+         * 1회성 화면 캡처 요청 (도움 요청 시 사용)
+         * @param callback Base64 인코딩된 이미지 또는 null (실패 시)
+         */
+        fun captureOnce(context: Context, callback: (String?) -> Unit) {
+            if (!hasMediaProjectionPermission()) {
+                Log.w(TAG, "captureOnce: MediaProjection permission not granted")
+                callback(null)
+                return
+            }
+            captureCallback = callback
+            val intent = Intent(context, ScreenCaptureService::class.java).apply {
+                action = ACTION_CAPTURE_ONCE
+            }
+            context.startService(intent)
+        }
+
+        /**
+         * 캡처 결과 전달 (서비스 내부에서 호출)
+         */
+        internal fun deliverCaptureResult(base64Image: String?) {
+            captureCallback?.invoke(base64Image)
+            captureCallback = null
+        }
     }
 
     @Inject
@@ -165,7 +194,7 @@ class ScreenCaptureService : Service() {
                 sessionId = intent.getIntExtra(EXTRA_SESSION_ID, 0)
                 deviceId = intent.getStringExtra(EXTRA_DEVICE_ID) ?: ""
 
-                Log.d(TAG, "Starting capture: sessionId=$sessionId, deviceId=$deviceId")
+                Log.d(TAG, "Starting capture service: sessionId=$sessionId, deviceId=$deviceId")
                 startForeground(NOTIFICATION_ID, createNotification())
                 startCapture(resultCode, resultData)
             }
@@ -174,6 +203,14 @@ class ScreenCaptureService : Service() {
                 stopCapture()
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
+            }
+            ACTION_CAPTURE_ONCE -> {
+                // 1회성 캡처 (도움 요청 시)
+                Log.d(TAG, "Capture once requested")
+                serviceScope.launch {
+                    val base64Image = captureAndEncode()
+                    deliverCaptureResult(base64Image)
+                }
             }
         }
         return START_NOT_STICKY
@@ -231,7 +268,7 @@ class ScreenCaptureService : Service() {
 
         return NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
             .setContentTitle("수업 모니터링 중")
-            .setContentText("화면이 30초마다 캡처됩니다")
+            .setContentText("도움 요청 시 화면이 캡처됩니다")
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
@@ -258,9 +295,10 @@ class ScreenCaptureService : Service() {
             }, Handler(Looper.getMainLooper()))
 
             setupImageReader()
-            startPeriodicCapture()
+            // 주기적 캡처 제거 - 도움 요청 시에만 캡처
+            // startPeriodicCapture()
 
-            Log.d(TAG, "Screen capture started successfully")
+            Log.d(TAG, "Screen capture service ready (on-demand capture mode)")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start screen capture", e)
             stopSelf()
@@ -293,25 +331,26 @@ class ScreenCaptureService : Service() {
         Log.d(TAG, "ImageReader setup: ${captureWidth}x${captureHeight}")
     }
 
-    private fun startPeriodicCapture() {
-        captureJob?.cancel()
-        captureJob = serviceScope.launch {
-            while (isActive) {
-                captureAndUpload()
-                delay(CAPTURE_INTERVAL_MS)
-            }
-        }
-    }
+    // 주기적 캡처 제거됨 - 아래 메서드는 더 이상 사용되지 않음
+    // private fun startPeriodicCapture() { ... }
 
-    private suspend fun captureAndUpload() {
-        try {
-            val bitmap = captureScreen() ?: return
+    /**
+     * 1회성 캡처 후 Base64 반환 (도움 요청 시 사용)
+     */
+    private suspend fun captureAndEncode(): String? {
+        return try {
+            val bitmap = captureScreen()
+            if (bitmap == null) {
+                Log.w(TAG, "captureAndEncode: bitmap is null")
+                return null
+            }
             val base64Image = compressAndEncode(bitmap)
             bitmap.recycle()
-
-            uploadScreenshot(base64Image)
+            Log.d(TAG, "captureAndEncode: success, size=${base64Image.length}")
+            base64Image
         } catch (e: Exception) {
-            Log.e(TAG, "Capture and upload failed", e)
+            Log.e(TAG, "captureAndEncode failed", e)
+            null
         }
     }
 
@@ -368,25 +407,8 @@ class ScreenCaptureService : Service() {
         return base64
     }
 
-    private suspend fun uploadScreenshot(base64Image: String) {
-        try {
-            val request = ScreenshotUploadRequest(
-                device_id = deviceId,
-                image_data = base64Image,
-                captured_at = System.currentTimeMillis()
-            )
-
-            val response = screenshotApi.uploadScreenshot(sessionId, request)
-
-            if (response.isSuccessful) {
-                Log.d(TAG, "Screenshot uploaded successfully")
-            } else {
-                Log.e(TAG, "Screenshot upload failed: ${response.code()} - ${response.message()}")
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Screenshot upload error", e)
-        }
-    }
+    // uploadScreenshot 제거됨 - 도움 요청 시 WebSocket으로 스크린샷 전송
+    // private suspend fun uploadScreenshot(base64Image: String) { ... }
 
     private fun stopCapture() {
         captureJob?.cancel()

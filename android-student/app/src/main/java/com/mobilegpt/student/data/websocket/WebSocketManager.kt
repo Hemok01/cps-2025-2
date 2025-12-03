@@ -218,26 +218,38 @@ class WebSocketManager @Inject constructor(
 
     /**
      * 단계 완료 전송
+     * @param subtaskId 완료한 단계 ID
+     * @param deviceId 기기 고유값 (참가자 식별용)
      */
-    fun sendStepComplete(subtaskId: Int) {
+    fun sendStepComplete(subtaskId: Int, deviceId: String? = null) {
+        val data = mutableMapOf<String, Any>("subtask_id" to subtaskId)
+        deviceId?.let { data["device_id"] = it }
         sendMessage(
             ClientMessage(
                 type = MessageType.STEP_COMPLETE,
-                data = mapOf("subtask_id" to subtaskId)
+                data = data
             )
         )
     }
 
     /**
      * 도움 요청 전송 (메시지 없이 즉시)
+     * @param subtaskId 현재 단계 ID (optional)
+     * @param deviceId 기기 고유값 (참가자 식별용)
+     * @param screenshot Base64 인코딩된 스크린샷 (optional)
      */
-    fun sendHelpRequest(subtaskId: Int? = null) {
+    fun sendHelpRequest(subtaskId: Int? = null, deviceId: String? = null, screenshot: String? = null) {
+        val data = mutableMapOf<String, Any>()
+        subtaskId?.let { data["subtask_id"] = it }
+        deviceId?.let { data["device_id"] = it }
+        screenshot?.let { data["screenshot"] = it }
         sendMessage(
             ClientMessage(
                 type = MessageType.REQUEST_HELP,
-                data = subtaskId?.let { mapOf("subtask_id" to it) }
+                data = if (data.isEmpty()) null else data
             )
         )
+        Log.d(TAG, "Help request sent with screenshot=${screenshot != null}")
     }
 
     /**

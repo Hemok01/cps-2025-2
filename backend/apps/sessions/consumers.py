@@ -46,6 +46,10 @@ class SessionConsumer(AsyncWebsocketConsumer):
             self.session_group_name = f'session_{self.session_code}'
             self.user = self.scope.get('user')
 
+            # device_id 기반 익명 참가자 지원을 위한 초기화
+            self.device_id = None
+            self.participant = None
+
             logger.info(f"WebSocket connection attempt - Session: {self.session_code}, User: {self.user}")
 
             # JWT 미들웨어가 이미 인증을 처리함
@@ -115,17 +119,31 @@ class SessionConsumer(AsyncWebsocketConsumer):
 
     async def disconnect(self, close_code):
         """Handle WebSocket disconnection"""
-        # Update participant status to DISCONNECTED
-        await self.update_participant_on_disconnect()
+        # Update participant status to DISCONNECTED (device_id 우선)
+        if hasattr(self, 'device_id') and self.device_id:
+            await self.update_participant_on_disconnect_by_device()
+        else:
+            await self.update_participant_on_disconnect()
 
-        # Notify others that user left (if we have a valid user)
-        if hasattr(self, 'user') and self.user and hasattr(self, 'session_group_name'):
+        # 참가자 이름 결정
+        participant_name = 'Anonymous'
+        participant_id = 0
+        if hasattr(self, 'participant') and self.participant:
+            participant_name = self.participant.display_name or 'Anonymous'
+            participant_id = self.participant.id
+        elif hasattr(self, 'user') and self.user:
+            participant_name = getattr(self.user, 'name', 'Anonymous')
+            participant_id = getattr(self.user, 'id', 0)
+
+        # Notify others that user left
+        if hasattr(self, 'session_group_name'):
             await self.channel_layer.group_send(
                 self.session_group_name,
                 {
                     'type': 'participant_left',
-                    'user_id': getattr(self.user, 'id', 0),
-                    'user_name': getattr(self.user, 'name', 'Anonymous')
+                    'user_id': participant_id,
+                    'user_name': participant_name,
+                    'device_id': getattr(self, 'device_id', None)
                 }
             )
 
@@ -138,9 +156,12 @@ class SessionConsumer(AsyncWebsocketConsumer):
 
     async def receive(self, text_data):
         """Handle incoming WebSocket messages"""
+        import logging
+        logger = logging.getLogger(__name__)
         try:
             data = json.loads(text_data)
             message_type = data.get('type')
+            logger.info(f"[receive] Received message type: {message_type}, has_screenshot: {'screenshot' in data or 'screenshot' in data.get('data', {})}")
 
             # Instructor commands
             if message_type == 'next_step':
@@ -303,21 +324,56 @@ class SessionConsumer(AsyncWebsocketConsumer):
     # Student message handlers
     async def handle_join(self, data):
         """Handle explicit join message from student"""
-        # Update participant status to ACTIVE
-        await self.update_participant_status('ACTIVE')
+        import logging
+        logger = logging.getLogger(__name__)
+
+        # Android 앱에서 보내는 device_id와 name 추출
+        # 메시지 형식: {"type": "join", "data": {"device_id": "xxx", "name": "홍길동"}}
+        join_data = data.get('data', {})
+        device_id = join_data.get('device_id')
+        display_name = join_data.get('name', '익명')
+
+        logger.info(f"[handle_join] device_id={device_id}, name={display_name}")
+
+        if device_id:
+            # device_id로 기존 SessionParticipant 찾기 (REST API에서 생성된 것)
+            self.device_id = device_id
+            participant = await self.get_participant_by_device(device_id)
+
+            if participant:
+                self.participant = participant
+                logger.info(f"[handle_join] Found participant: id={participant.id}, device_id={device_id}")
+
+                # 참가자 상태를 ACTIVE로 업데이트
+                await self.update_participant_status_by_device('ACTIVE')
+            else:
+                logger.warning(f"[handle_join] Participant not found for device_id={device_id}")
+                # REST API로 먼저 세션에 참가하지 않은 경우 - 새로 생성
+                participant = await self.create_participant_by_device(device_id, display_name)
+                if participant:
+                    self.participant = participant
+                    logger.info(f"[handle_join] Created new participant: id={participant.id}")
+        else:
+            # device_id가 없으면 기존 user 기반 업데이트 시도
+            await self.update_participant_status('ACTIVE')
 
         # Send confirmation
         await self.send(text_data=json.dumps({
             'type': 'join_confirmed',
             'session_code': self.session_code,
-            'user_id': self.user.id,
+            'participant_id': self.participant.id if self.participant else None,
+            'device_id': self.device_id,
+            'user_id': getattr(self.user, 'id', 0),
             'message': '세션에 참가했습니다'
         }))
 
     async def handle_heartbeat(self, data):
         """Handle heartbeat message to keep connection alive"""
-        # Update last_active_at timestamp
-        await self.update_participant_last_active()
+        # Update last_active_at timestamp (device_id 우선, 없으면 user 기반)
+        if self.device_id:
+            await self.update_participant_last_active_by_device()
+        else:
+            await self.update_participant_last_active()
 
         # Send heartbeat response (optional)
         await self.send(text_data=json.dumps({
@@ -327,7 +383,10 @@ class SessionConsumer(AsyncWebsocketConsumer):
 
     async def handle_step_complete(self, data):
         """Handle student completing a step"""
-        subtask_id = data.get('subtask_id')
+        import logging
+        logger = logging.getLogger(__name__)
+
+        subtask_id = data.get('subtask_id') or data.get('data', {}).get('subtask_id')
 
         if not subtask_id:
             await self.send(text_data=json.dumps({
@@ -335,16 +394,30 @@ class SessionConsumer(AsyncWebsocketConsumer):
             }))
             return
 
-        # Update participant's current subtask
-        await self.update_participant_subtask(subtask_id)
+        # 메시지에서 device_id 추출 (Android 앱에서 보내는 경우)
+        msg_device_id = data.get('device_id') or data.get('data', {}).get('device_id')
+        if msg_device_id and not self.device_id:
+            self.device_id = msg_device_id
+            logger.info(f"[handle_step_complete] device_id from message: {msg_device_id}")
+
+        # Update participant's current subtask (device_id 우선)
+        if self.device_id:
+            await self.update_participant_subtask_by_device(subtask_id)
+        else:
+            await self.update_participant_subtask(subtask_id)
+
+        # 참가자 이름 결정 - DB에서 직접 조회
+        participant_name = await self.get_participant_name()
+        participant_id = self.participant.id if self.participant else getattr(self.user, 'id', 0)
 
         # Send progress update to instructor(s) only
         await self.channel_layer.group_send(
             self.session_group_name,
             {
                 'type': 'progress_updated',
-                'user_id': self.user.id,
-                'user_name': self.user.name,
+                'user_id': participant_id,
+                'user_name': participant_name,
+                'device_id': self.device_id,
                 'subtask_id': subtask_id,
                 'status': 'completed',
                 'role_filter': 'INSTRUCTOR'  # Only send to instructors
@@ -360,20 +433,37 @@ class SessionConsumer(AsyncWebsocketConsumer):
 
     async def handle_progress_update(self, data):
         """Handle student progress update (legacy)"""
+        import logging
+        logger = logging.getLogger(__name__)
+
         subtask_id = data.get('subtask_id')
         status = data.get('status', 'in_progress')
 
-        # Update participant's current subtask if provided
+        # 메시지에서 device_id 추출 (Android 앱에서 보내는 경우)
+        msg_device_id = data.get('device_id') or data.get('data', {}).get('device_id')
+        if msg_device_id and not self.device_id:
+            self.device_id = msg_device_id
+            logger.info(f"[handle_progress_update] device_id from message: {msg_device_id}")
+
+        # Update participant's current subtask if provided (device_id 우선)
         if subtask_id:
-            await self.update_participant_subtask(subtask_id)
+            if self.device_id:
+                await self.update_participant_subtask_by_device(subtask_id)
+            else:
+                await self.update_participant_subtask(subtask_id)
+
+        # 참가자 이름 결정 - DB에서 직접 조회
+        participant_name = await self.get_participant_name()
+        participant_id = self.participant.id if self.participant else getattr(self.user, 'id', 0)
 
         # Send progress update to instructor(s) only
         await self.channel_layer.group_send(
             self.session_group_name,
             {
                 'type': 'progress_updated',
-                'user_id': self.user.id,
-                'user_name': self.user.name,
+                'user_id': participant_id,
+                'user_name': participant_name,
+                'device_id': self.device_id,
                 'subtask_id': subtask_id,
                 'status': status,
                 'role_filter': 'INSTRUCTOR'  # Only send to instructors
@@ -382,18 +472,42 @@ class SessionConsumer(AsyncWebsocketConsumer):
 
     async def handle_help_request(self, data):
         """Handle student help request"""
-        subtask_id = data.get('subtask_id')
-        message = data.get('message', '')
+        import logging
+        logger = logging.getLogger(__name__)
+
+        subtask_id = data.get('subtask_id') or data.get('data', {}).get('subtask_id')
+        message = data.get('message', '') or data.get('data', {}).get('message', '')
+        screenshot_base64 = data.get('screenshot') or data.get('data', {}).get('screenshot')
+
+        # 메시지에서 device_id 추출 (Android 앱에서 보내는 경우)
+        msg_device_id = data.get('device_id') or data.get('data', {}).get('device_id')
+        if msg_device_id and not self.device_id:
+            self.device_id = msg_device_id
+            logger.info(f"[handle_help_request] device_id from message: {msg_device_id}")
+
+        # 참가자 이름 결정 - DB에서 직접 조회하여 정확한 이름 가져오기
+        participant_name = await self.get_participant_name()
+        participant_id = self.participant.id if self.participant else getattr(self.user, 'id', 0)
+
+        logger.info(f"[handle_help_request] participant_name={participant_name}, participant_id={participant_id}, device_id={self.device_id}, has_screenshot={screenshot_base64 is not None}")
+
+        # 스크린샷이 있으면 저장
+        screenshot_url = None
+        if screenshot_base64:
+            screenshot_url = await self.save_help_request_screenshot(screenshot_base64)
+            logger.info(f"[handle_help_request] Screenshot saved: {screenshot_url}")
 
         # Send help request to instructor(s)
         await self.channel_layer.group_send(
             self.session_group_name,
             {
                 'type': 'help_requested',
-                'user_id': self.user.id,
-                'user_name': self.user.name,
+                'user_id': participant_id,
+                'user_name': participant_name,
+                'device_id': self.device_id,
                 'subtask_id': subtask_id,
                 'message': message,
+                'screenshot_url': screenshot_url,
                 'role_filter': 'INSTRUCTOR'
             }
         )
@@ -498,12 +612,14 @@ class SessionConsumer(AsyncWebsocketConsumer):
             'user_name': event['user_name'],
             'subtask_id': event['subtask_id'],
             'message': event.get('message', ''),
+            'screenshot_url': event.get('screenshot_url'),
             # Frontend expects data wrapper with 'username' (not 'user_name')
             'data': {
                 'user_id': event['user_id'],
                 'username': event['user_name'],
                 'subtask_id': event['subtask_id'],
                 'message': event.get('message', ''),
+                'screenshot_url': event.get('screenshot_url'),
                 'timestamp': timezone.now().isoformat(),
             }
         }))
@@ -557,6 +673,53 @@ class SessionConsumer(AsyncWebsocketConsumer):
                 'timestamp': event.get('timestamp'),
             }
         }))
+
+    # Helper methods
+    async def get_participant_name(self):
+        """참가자 이름을 가져오는 헬퍼 메서드 - 인증된 사용자 우선"""
+        import logging
+        logger = logging.getLogger(__name__)
+
+        # 1. 인증된 사용자의 이름 사용 (최우선 - JWT 토큰으로 인증된 경우)
+        # self.user.id가 0이 아니고 (익명이 아니고), name이 있으면 사용
+        if hasattr(self.user, 'id') and self.user.id and self.user.id != 0:
+            if hasattr(self.user, 'name') and self.user.name:
+                user_name = self.user.name
+                if not user_name.startswith('Anonymous_'):
+                    logger.info(f"[get_participant_name] Using authenticated user name: {user_name}")
+                    return user_name
+
+        # 2. self.participant가 있으면 사용
+        if self.participant:
+            # 2-1. participant에 연결된 user의 이름 확인
+            if hasattr(self.participant, 'user') and self.participant.user:
+                user = self.participant.user
+                if hasattr(user, 'name') and user.name and not user.name.startswith('Anonymous_'):
+                    logger.info(f"[get_participant_name] Using participant.user name: {user.name}")
+                    return user.name
+            # 2-2. display_name 확인
+            if self.participant.display_name:
+                logger.info(f"[get_participant_name] Using participant display_name: {self.participant.display_name}")
+                return self.participant.display_name
+
+        # 3. device_id로 DB에서 조회
+        if self.device_id:
+            participant = await self.get_participant_by_device(self.device_id)
+            if participant:
+                self.participant = participant  # 캐시
+                # 3-1. participant에 연결된 user의 이름 확인
+                if hasattr(participant, 'user') and participant.user:
+                    user = participant.user
+                    if hasattr(user, 'name') and user.name and not user.name.startswith('Anonymous_'):
+                        logger.info(f"[get_participant_name] Using DB participant.user name: {user.name}")
+                        return user.name
+                # 3-2. display_name 확인
+                if participant.display_name:
+                    logger.info(f"[get_participant_name] Using DB participant display_name: {participant.display_name}")
+                    return participant.display_name
+
+        logger.warning(f"[get_participant_name] Falling back to '익명' - user.id={getattr(self.user, 'id', None)}, device_id={self.device_id}")
+        return '익명'
 
     # Database queries
     @database_sync_to_async
@@ -718,6 +881,131 @@ class SessionConsumer(AsyncWebsocketConsumer):
         except Exception:
             return False
 
+    # ==================== device_id 기반 메서드 (익명 참가자 지원) ====================
+
+    @database_sync_to_async
+    def get_participant_by_device(self, device_id):
+        """device_id로 SessionParticipant 조회 (user 관계 포함)"""
+        try:
+            session = LectureSession.objects.get(session_code=self.session_code)
+            # select_related('user')로 user 관계를 미리 로드하여
+            # participant.user.name 접근 시 정상적으로 이름을 가져올 수 있도록 함
+            return SessionParticipant.objects.select_related('user').get(
+                session=session,
+                device_id=device_id
+            )
+        except (LectureSession.DoesNotExist, SessionParticipant.DoesNotExist):
+            return None
+
+    @database_sync_to_async
+    def create_participant_by_device(self, device_id, display_name):
+        """device_id로 새 SessionParticipant 생성 (REST API 없이 직접 WebSocket 연결한 경우)"""
+        try:
+            session = LectureSession.objects.get(session_code=self.session_code)
+            participant, created = SessionParticipant.objects.get_or_create(
+                session=session,
+                device_id=device_id,
+                defaults={
+                    'display_name': display_name,
+                    'status': 'ACTIVE',
+                    'current_subtask': session.current_subtask
+                }
+            )
+            if not created:
+                participant.display_name = display_name
+                participant.status = 'ACTIVE'
+                participant.last_active_at = timezone.now()
+                participant.save()
+            return participant
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"Error creating participant: {e}")
+            return None
+
+    @database_sync_to_async
+    def update_participant_status_by_device(self, status):
+        """device_id로 참가자 상태 업데이트"""
+        try:
+            if not self.device_id:
+                return False
+
+            session = LectureSession.objects.get(session_code=self.session_code)
+            updated = SessionParticipant.objects.filter(
+                session=session,
+                device_id=self.device_id
+            ).update(status=status, last_active_at=timezone.now())
+            return updated > 0
+        except Exception:
+            return False
+
+    @database_sync_to_async
+    def update_participant_last_active_by_device(self):
+        """device_id로 마지막 활동 시간 업데이트"""
+        try:
+            if not self.device_id:
+                return False
+
+            session = LectureSession.objects.get(session_code=self.session_code)
+            updated = SessionParticipant.objects.filter(
+                session=session,
+                device_id=self.device_id
+            ).update(last_active_at=timezone.now())
+            return updated > 0
+        except Exception:
+            return False
+
+    @database_sync_to_async
+    def update_participant_subtask_by_device(self, subtask_id):
+        """device_id로 현재 단계 업데이트"""
+        try:
+            if not self.device_id:
+                return False
+
+            from apps.tasks.models import Subtask
+            session = LectureSession.objects.get(session_code=self.session_code)
+            subtask = Subtask.objects.get(id=subtask_id)
+
+            # 완료된 단계 목록에 추가
+            participant = SessionParticipant.objects.get(
+                session=session,
+                device_id=self.device_id
+            )
+
+            # completed_subtasks 업데이트
+            completed = participant.completed_subtasks or []
+            if subtask_id not in completed:
+                completed.append(subtask_id)
+
+            participant.current_subtask = subtask
+            participant.completed_subtasks = completed
+            participant.last_completed_at = timezone.now()
+            participant.last_active_at = timezone.now()
+            participant.save()
+            return True
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"Error updating participant subtask: {e}")
+            return False
+
+    @database_sync_to_async
+    def update_participant_on_disconnect_by_device(self):
+        """device_id로 연결 해제 시 상태 업데이트"""
+        try:
+            if not self.device_id:
+                return False
+
+            session = LectureSession.objects.get(session_code=self.session_code)
+            updated = SessionParticipant.objects.filter(
+                session=session,
+                device_id=self.device_id
+            ).update(
+                status='DISCONNECTED',
+                last_active_at=timezone.now()
+            )
+            return updated > 0
+        except Exception:
+            return False
+
     # SessionStepControl logging methods
     @database_sync_to_async
     def log_step_control(self, action, subtask_id=None, message=''):
@@ -746,3 +1034,59 @@ class SessionConsumer(AsyncWebsocketConsumer):
         except Exception as e:
             print(f"Error logging step control: {e}")
             return False
+
+    @database_sync_to_async
+    def save_help_request_screenshot(self, base64_image):
+        """
+        도움 요청 시 전송된 스크린샷을 저장하고 URL 반환
+
+        Args:
+            base64_image: Base64 인코딩된 이미지 데이터
+
+        Returns:
+            저장된 이미지의 URL 또는 None (실패 시)
+        """
+        import base64
+        import uuid
+        from django.core.files.base import ContentFile
+        from django.conf import settings
+        import os
+        import logging
+
+        logger = logging.getLogger(__name__)
+
+        try:
+            # Base64 디코딩
+            if ',' in base64_image:
+                # data:image/jpeg;base64,... 형식인 경우
+                base64_image = base64_image.split(',')[1]
+
+            image_data = base64.b64decode(base64_image)
+
+            # 파일명 생성
+            filename = f"help_request_{uuid.uuid4().hex}.jpg"
+
+            # 저장 경로 설정 (날짜별 디렉토리)
+            from datetime import date
+            today = date.today()
+            relative_path = f"help_screenshots/{today.year}/{today.month:02d}/{today.day:02d}"
+            full_dir = os.path.join(settings.MEDIA_ROOT, relative_path)
+
+            # 디렉토리 생성
+            os.makedirs(full_dir, exist_ok=True)
+
+            # 파일 저장
+            file_path = os.path.join(full_dir, filename)
+            with open(file_path, 'wb') as f:
+                f.write(image_data)
+
+            # URL 반환 (프론트엔드에서 접근 가능한 절대 경로)
+            # settings.MEDIA_URL이 이미 '/'로 시작하므로 중복 슬래시 방지
+            media_url = settings.MEDIA_URL.rstrip('/')
+            url = f"{media_url}/{relative_path}/{filename}"
+            logger.info(f"[save_help_request_screenshot] Saved: {url}, size={len(image_data)}bytes")
+            return url
+
+        except Exception as e:
+            logger.error(f"[save_help_request_screenshot] Error: {e}")
+            return None

@@ -2,14 +2,14 @@
 URL Configuration for MobileGPT Backend
 """
 from django.contrib import admin
-from django.urls import path, include
+from django.urls import path, include, re_path
 from django.conf import settings
 from django.conf.urls.static import static
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
 )
-from core.views import assetlinks
+from core.views import assetlinks, serve_media_with_cors
 
 urlpatterns = [
     # Admin
@@ -37,7 +37,10 @@ urlpatterns = [
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 ]
 
-# Serve media files in development
+# Serve media files with CORS headers (for cross-origin image loading)
 if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    # Use custom view for media files to add CORS headers
+    urlpatterns += [
+        re_path(r'^media/(?P<path>.*)$', serve_media_with_cors, name='media'),
+    ]
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

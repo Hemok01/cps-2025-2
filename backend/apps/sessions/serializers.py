@@ -89,9 +89,17 @@ class SessionParticipantSerializer(serializers.ModelSerializer):
 
     def get_name(self, obj):
         """사용자 이름 반환 (익명 참가자는 display_name 사용)"""
-        if obj.user:
+        # 1. 인증된 사용자의 이름
+        if obj.user and obj.user.name:
             return obj.user.name
-        return obj.display_name or f"익명-{obj.device_id[:8] if obj.device_id else 'Unknown'}"
+        # 2. 익명 참가자의 display_name
+        if obj.display_name:
+            return obj.display_name
+        # 3. device_id로 식별
+        if obj.device_id:
+            return f"기기-{obj.device_id[:8]}"
+        # 4. 최후의 수단
+        return f"참가자-{obj.id}"
 
     def get_is_active(self, obj):
         """활성 상태 여부"""
@@ -179,8 +187,16 @@ class StudentScreenshotSerializer(serializers.ModelSerializer):
 
     def get_participant_name(self, obj):
         if obj.participant:
-            return obj.participant.participant_name
-        return f"익명-{obj.device_id[:8]}" if obj.device_id else "Unknown"
+            # user가 있으면 user.name 사용
+            if obj.participant.user and obj.participant.user.name:
+                return obj.participant.user.name
+            # display_name 사용
+            if obj.participant.display_name:
+                return obj.participant.display_name
+        # device_id로 식별
+        if obj.device_id:
+            return f"기기-{obj.device_id[:8]}"
+        return f"참가자-{obj.participant.id if obj.participant else 'Unknown'}"
 
     def get_image_url(self, obj):
         request = self.context.get('request')
@@ -222,8 +238,16 @@ class StudentScreenshotListSerializer(serializers.ModelSerializer):
 
     def get_participant_name(self, obj):
         if obj.participant:
-            return obj.participant.participant_name
-        return f"익명-{obj.device_id[:8]}" if obj.device_id else "Unknown"
+            # user가 있으면 user.name 사용
+            if obj.participant.user and obj.participant.user.name:
+                return obj.participant.user.name
+            # display_name 사용
+            if obj.participant.display_name:
+                return obj.participant.display_name
+        # device_id로 식별
+        if obj.device_id:
+            return f"기기-{obj.device_id[:8]}"
+        return f"참가자-{obj.participant.id if obj.participant else 'Unknown'}"
 
     def get_image_url(self, obj):
         request = self.context.get('request')

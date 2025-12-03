@@ -602,18 +602,32 @@ class FloatingOverlayService : Service() {
     }
 
     /**
-     * 도움 요청 처리
+     * 도움 요청 처리 (스크린샷 포함)
      */
     private fun performHelpRequest() {
         val id = subtaskId
+        val deviceId = entryPoint.tokenPreferences().getDeviceId()
         Log.d(TAG, "Help requested: step=$currentStep, subtaskId=$id")
 
-        // WebSocket으로 도움 요청 전송 (subtask_id 사용)
-        try {
-            entryPoint.webSocketManager().sendHelpRequest(id)
-            Log.d(TAG, "Help request sent for subtaskId=$id")
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to send help request", e)
+        // 스크린캡처 서비스가 활성화되어 있으면 스크린샷 캡처 후 전송
+        if (ScreenCaptureService.hasMediaProjectionPermission()) {
+            Log.d(TAG, "Capturing screenshot before help request")
+            ScreenCaptureService.captureOnce(this) { base64Screenshot ->
+                try {
+                    entryPoint.webSocketManager().sendHelpRequest(id, deviceId, base64Screenshot)
+                    Log.d(TAG, "Help request sent with screenshot=${base64Screenshot != null}")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to send help request", e)
+                }
+            }
+        } else {
+            // 스크린캡처 권한이 없으면 스크린샷 없이 전송
+            try {
+                entryPoint.webSocketManager().sendHelpRequest(id, deviceId, null)
+                Log.d(TAG, "Help request sent without screenshot (no permission)")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to send help request", e)
+            }
         }
     }
 

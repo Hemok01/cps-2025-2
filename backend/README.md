@@ -71,6 +71,9 @@ USE_REDIS_CHANNELS=True
 ### 2. Docker Compose로 실행
 
 ```bash
+# backend 폴더에서 실행 (중요!)
+cd backend
+
 # 모든 서비스 시작
 docker-compose up -d
 
@@ -79,9 +82,10 @@ docker-compose ps
 
 # 개별 서비스 로그 확인
 docker-compose logs -f backend        # Django 백엔드
+docker-compose logs -f daphne         # WebSocket 서버
+docker-compose logs -f frontend       # React 프론트엔드
 docker-compose logs -f kafka          # Kafka 브로커
 docker-compose logs -f kafka-consumer # Kafka Consumer
-docker-compose logs -f daphne         # WebSocket 서버
 
 # 서비스 중지
 docker-compose down
@@ -90,16 +94,30 @@ docker-compose down
 docker-compose down -v
 ```
 
+#### 접속 URL
+| 서비스 | URL |
+|--------|-----|
+| 프론트엔드 | http://localhost:5173 |
+| 백엔드 API | http://localhost:8000/api |
+| WebSocket | ws://localhost:8001/ws |
+| Django Admin | http://localhost:8000/admin |
+
 #### Docker 서비스 구성
-- **PostgreSQL** (포트 5432) - 메인 데이터베이스
-- **Redis** (포트 6379) - 캐시 및 채널 레이어
-- **Zookeeper** (포트 2181) - Kafka 코디네이터
-- **Kafka** (포트 9092, 9093) - 이벤트 스트리밍
-- **Backend** (포트 8000) - Django REST API
-- **Daphne** (포트 8001) - WebSocket 서버
-- **Celery Worker** - 비동기 작업 처리
-- **Celery Beat** - 스케줄 작업
-- **Kafka Consumer** - 활동 로그 처리
+
+| 서비스 | 포트 | 설명 |
+|--------|------|------|
+| **Frontend** | 5173 | React 대시보드 (Vite) |
+| **Backend** | 8000 | Django REST API |
+| **Daphne** | 8001 | WebSocket 서버 |
+| **PostgreSQL** | 5432 | 메인 데이터베이스 |
+| **Redis** | 6379 | 캐시 및 채널 레이어 |
+| **Kafka** | 9092 | 이벤트 스트리밍 |
+| **Zookeeper** | 2181 | Kafka 코디네이터 |
+| **Celery Worker** | - | 비동기 작업 처리 |
+| **Celery Beat** | - | 스케줄 작업 |
+| **Kafka Consumer** | - | 활동 로그 처리 |
+
+> **참고**: `docker-compose.yml`은 이 backend 폴더에 위치합니다. 프로젝트 루트가 아닌 `backend/` 폴더에서 실행하세요.
 
 ### 3. 로컬 개발 환경 (Docker 없이)
 

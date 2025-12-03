@@ -180,16 +180,21 @@ class SessionRepository @Inject constructor(
 
     /**
      * 단계 완료 알림
+     * @param subtaskId 완료한 단계 ID
      */
     fun notifyStepComplete(subtaskId: Int) {
-        webSocketManager.sendStepComplete(subtaskId)
+        val deviceId = tokenPreferences.getDeviceId()
+        webSocketManager.sendStepComplete(subtaskId, deviceId)
     }
 
     /**
      * 도움 요청 (메시지 없이 즉시)
+     * @param subtaskId 현재 단계 ID (optional)
+     * @param screenshot Base64 인코딩된 스크린샷 (optional)
      */
-    fun requestHelp(subtaskId: Int? = null) {
-        webSocketManager.sendHelpRequest(subtaskId)
+    fun requestHelp(subtaskId: Int? = null, screenshot: String? = null) {
+        val deviceId = tokenPreferences.getDeviceId()
+        webSocketManager.sendHelpRequest(subtaskId, deviceId, screenshot)
     }
 
     /**
