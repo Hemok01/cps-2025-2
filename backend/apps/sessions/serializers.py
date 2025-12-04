@@ -5,7 +5,7 @@ import base64
 import uuid
 from django.core.files.base import ContentFile
 from rest_framework import serializers
-from .models import LectureSession, SessionParticipant, SessionStepControl, RecordingSession, StudentScreenshot
+from .models import LectureSession, SessionParticipant, SessionStepControl, RecordingSession, RecordingStep, StudentScreenshot
 from apps.lectures.serializers import LectureSerializer
 from apps.accounts.serializers import UserSerializer
 from apps.tasks.serializers import SubtaskSerializer
@@ -256,3 +256,67 @@ class StudentScreenshotListSerializer(serializers.ModelSerializer):
         elif obj.image:
             return obj.image.url
         return None
+
+
+# ==================== Recording Step Serializers ====================
+
+class RecordingStepSerializer(serializers.ModelSerializer):
+    """녹화 단계 조회 serializer"""
+
+    class Meta:
+        model = RecordingStep
+        fields = [
+            'id', 'recording_session', 'step_number', 'title', 'description',
+            'event_time', 'event_type', 'package_name', 'class_name',
+            'text', 'content_description', 'view_id', 'bounds',
+            'subtask', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'recording_session', 'created_at', 'updated_at']
+
+
+class RecordingStepCreateSerializer(serializers.ModelSerializer):
+    """녹화 단계 생성 serializer (GPT 분석 결과 저장용)"""
+
+    class Meta:
+        model = RecordingStep
+        fields = [
+            'step_number', 'title', 'description', 'event_time', 'event_type',
+            'package_name', 'class_name', 'text', 'content_description',
+            'view_id', 'bounds'
+        ]
+
+
+class RecordingStepUpdateSerializer(serializers.ModelSerializer):
+    """녹화 단계 수정 serializer (편집 기능용)"""
+
+    class Meta:
+        model = RecordingStep
+        fields = ['title', 'description', 'text']
+
+
+class RecordingSessionDetailSerializer(serializers.ModelSerializer):
+    """녹화 세션 상세 조회 (단계 포함)"""
+    instructor = UserSerializer(read_only=True)
+    lecture = LectureSerializer(read_only=True)
+    steps = RecordingStepSerializer(many=True, read_only=True)
+    step_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = RecordingSession
+        fields = [
+            'id', 'instructor', 'title', 'description', 'status',
+            'event_count', 'duration_seconds', 'started_at', 'ended_at',
+            'lecture', 'steps', 'step_count', 'analysis_error',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = fields
+
+    def get_step_count(self, obj):
+        return obj.steps.count()
+
+
+class ConvertToLectureSerializer(serializers.Serializer):
+    """녹화를 강의로 변환하는 요청 serializer"""
+    lecture_title = serializers.CharField(max_length=255)
+    lecture_description = serializers.CharField(required=False, allow_blank=True, default='')
+    task_title = serializers.CharField(max_length=255, required=False, allow_blank=True)

@@ -297,7 +297,9 @@ class RecordingSession(models.Model):
     STATUS_CHOICES = [
         ('RECORDING', '녹화 중'),
         ('COMPLETED', '완료'),
-        ('PROCESSING', '처리 중'),
+        ('PROCESSING', 'GPT 분석 중'),
+        ('ANALYZED', '분석 완료'),
+        ('CONVERTED', '강의 변환됨'),
         ('FAILED', '실패'),
     ]
 
@@ -336,6 +338,14 @@ class RecordingSession(models.Model):
         verbose_name='생성된 강의'
     )
 
+    # GPT 분석 오류 메시지
+    analysis_error = models.TextField(
+        blank=True,
+        default='',
+        verbose_name='분석 오류',
+        help_text='GPT 분석 실패 시 오류 메시지'
+    )
+
     class Meta:
         db_table = 'recording_sessions'
         verbose_name = '녹화 세션'
@@ -350,3 +360,59 @@ class RecordingSession(models.Model):
 
     def __str__(self):
         return f"{self.title} - {self.instructor.name}"
+
+
+class RecordingStep(models.Model):
+    """GPT가 분석한 녹화 단계 모델"""
+
+    recording_session = models.ForeignKey(
+        RecordingSession,
+        on_delete=models.CASCADE,
+        related_name='steps',
+        verbose_name='녹화 세션'
+    )
+    step_number = models.IntegerField(verbose_name='단계 번호')
+    title = models.CharField(max_length=255, verbose_name='제목')
+    description = models.TextField(blank=True, verbose_name='설명')
+
+    # 이벤트 메타데이터 (GPT 분석 결과에서 추출)
+    event_time = models.BigIntegerField(
+        null=True,
+        blank=True,
+        verbose_name='이벤트 시각',
+        help_text='밀리초 단위 타임스탬프'
+    )
+    event_type = models.CharField(max_length=50, blank=True, verbose_name='이벤트 타입')
+    package_name = models.CharField(max_length=255, blank=True, verbose_name='패키지명')
+    class_name = models.CharField(max_length=255, blank=True, verbose_name='클래스명')
+    text = models.TextField(blank=True, verbose_name='텍스트')
+    content_description = models.TextField(blank=True, verbose_name='콘텐츠 설명')
+    view_id = models.CharField(max_length=255, blank=True, verbose_name='뷰 ID')
+    bounds = models.CharField(max_length=100, blank=True, verbose_name='화면 좌표')
+
+    # Subtask 연결 (강의 변환 후)
+    subtask = models.ForeignKey(
+        'tasks.Subtask',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='source_recording_steps',
+        verbose_name='변환된 Subtask'
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='생성일시')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='수정일시')
+
+    class Meta:
+        db_table = 'recording_steps'
+        verbose_name = '녹화 단계'
+        verbose_name_plural = '녹화 단계'
+        ordering = ['step_number']
+        unique_together = ['recording_session', 'step_number']
+        indexes = [
+            models.Index(fields=['recording_session']),
+            models.Index(fields=['step_number']),
+        ]
+
+    def __str__(self):
+        return f"Step {self.step_number}: {self.title}"
