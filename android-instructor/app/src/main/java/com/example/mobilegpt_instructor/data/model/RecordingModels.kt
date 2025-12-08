@@ -24,6 +24,40 @@ data class ConvertToLectureRequest(
 
 // ============ Response Models ============
 
+/**
+ * Django REST Framework 페이지네이션 응답 래퍼
+ */
+data class PaginatedResponse<T>(
+    val count: Int,
+    val next: String?,
+    val previous: String?,
+    val results: List<T>
+)
+
+/**
+ * 녹화 목록 조회용 (RecordingSessionListSerializer)
+ */
+data class RecordingListItem(
+    val id: Int,
+    val title: String,
+    @SerializedName("instructor_name")
+    val instructorName: String?,
+    val status: String,
+    @SerializedName("event_count")
+    val eventCount: Int,
+    @SerializedName("duration_seconds")
+    val durationSeconds: Int?,
+    @SerializedName("started_at")
+    val startedAt: String?,
+    @SerializedName("ended_at")
+    val endedAt: String?,
+    @SerializedName("created_at")
+    val createdAt: String
+)
+
+/**
+ * 녹화 상세 조회용 (RecordingSessionSerializer)
+ */
 data class RecordingResponse(
     val id: Int,
     val title: String,

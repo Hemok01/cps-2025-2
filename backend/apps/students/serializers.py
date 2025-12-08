@@ -46,7 +46,7 @@ class SubtaskDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Subtask
-        fields = ['id', 'task', 'task_title', 'title', 'description', 'order', 'target_app', 'target_action']
+        fields = ['id', 'task', 'task_title', 'title', 'description', 'order_index', 'target_action', 'guide_text']
 
 
 class SessionParticipantSerializer(serializers.ModelSerializer):

@@ -14,7 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.example.mobilegpt_instructor.data.model.RecordingResponse
+import com.example.mobilegpt_instructor.data.model.RecordingListItem
 import com.example.mobilegpt_instructor.presentation.viewmodel.AuthViewModel
 import com.example.mobilegpt_instructor.presentation.viewmodel.RecordingUiState
 import com.example.mobilegpt_instructor.presentation.viewmodel.RecordingViewModel
@@ -26,7 +26,7 @@ fun HomeScreen(
     recordingViewModel: RecordingViewModel,
     onLogout: () -> Unit,
     onStartNewRecording: () -> Unit,
-    onRecordingClick: (RecordingResponse) -> Unit
+    onRecordingClick: (RecordingListItem) -> Unit
 ) {
     val user by authViewModel.currentUser.collectAsState()
     val uiState by recordingViewModel.uiState.collectAsState()
@@ -158,7 +158,7 @@ fun HomeScreen(
 
 @Composable
 private fun RecordingItem(
-    recording: RecordingResponse,
+    recording: RecordingListItem,
     onClick: () -> Unit
 ) {
     Card(
@@ -181,15 +181,15 @@ private fun RecordingItem(
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "이벤트: ${recording.eventCount}개 | 상태: ${recording.status}",
+                    text = "이벤트: ${recording.eventCount}개",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                if (recording.stepCount > 0) {
+                recording.durationSeconds?.let { duration ->
                     Text(
-                        text = "분석된 단계: ${recording.stepCount}개",
+                        text = "녹화 시간: ${duration / 60}분 ${duration % 60}초",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }

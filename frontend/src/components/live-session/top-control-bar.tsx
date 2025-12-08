@@ -16,14 +16,16 @@ import { Progress } from '../ui/progress';
 const STATUS_STYLES = {
   CREATED: { bg: 'var(--muted)', text: 'var(--text-secondary)', label: '생성됨' },
   ACTIVE: { bg: 'var(--success)', text: 'white', label: '진행 중' },
+  IN_PROGRESS: { bg: 'var(--success)', text: 'white', label: '진행 중' },
   PAUSED: { bg: 'var(--warning)', text: 'white', label: '일시정지' },
   ENDED: { bg: 'var(--status-inactive)', text: 'white', label: '종료됨' },
+  REVIEW_MODE: { bg: 'var(--info)', text: 'white', label: '복습 모드' },
 } as const;
 
 const CONTROL_BAR_HEIGHT = '64px';
 const STATUS_BAR_HEIGHT = '56px';
 
-type SessionStatus = 'CREATED' | 'ACTIVE' | 'PAUSED' | 'ENDED';
+type SessionStatus = 'CREATED' | 'ACTIVE' | 'IN_PROGRESS' | 'PAUSED' | 'ENDED' | 'REVIEW_MODE';
 
 interface TopControlBarProps {
   sessionTitle: string;
@@ -63,7 +65,7 @@ export function TopControlBar(props: TopControlBarProps) {
   const [elapsedTime, setElapsedTime] = useState(0);
 
   useEffect(() => {
-    if (sessionStatus === 'ACTIVE' && startedAt) {
+    if ((sessionStatus === 'ACTIVE' || sessionStatus === 'IN_PROGRESS') && startedAt) {
       const interval = setInterval(() => {
         const seconds = Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000);
         setElapsedTime(seconds);
@@ -73,7 +75,7 @@ export function TopControlBar(props: TopControlBarProps) {
     }
   }, [sessionStatus, startedAt]);
 
-  const showStatusBar = sessionStatus === 'ACTIVE' || sessionStatus === 'PAUSED';
+  const showStatusBar = sessionStatus === 'ACTIVE' || sessionStatus === 'IN_PROGRESS' || sessionStatus === 'PAUSED' || sessionStatus === 'REVIEW_MODE';
 
   return (
     <>
@@ -221,7 +223,7 @@ interface LectureSelectorProps {
 
 function LectureSelector({ lectures, sessionStatus, onSwitchLecture }: LectureSelectorProps) {
   const activeLecture = lectures.find(l => l.isActive);
-  const isDisabled = sessionStatus === 'ENDED';
+  const isDisabled = sessionStatus === 'ENDED' || sessionStatus === 'REVIEW_MODE';
   const hasMultipleLectures = lectures.length > 1;
 
   return (
@@ -265,8 +267,10 @@ interface LectureMenuItemProps {
 }
 
 function LectureMenuItem({ lecture, index, sessionStatus, onSwitchLecture }: LectureMenuItemProps) {
+  const isActive = sessionStatus === 'ACTIVE' || sessionStatus === 'IN_PROGRESS';
+
   const handleClick = () => {
-    if (!lecture.isActive && sessionStatus === 'ACTIVE' && onSwitchLecture) {
+    if (!lecture.isActive && isActive && onSwitchLecture) {
       onSwitchLecture(lecture.lectureId);
     }
   };
@@ -274,7 +278,7 @@ function LectureMenuItem({ lecture, index, sessionStatus, onSwitchLecture }: Lec
   return (
     <DropdownMenuItem
       onClick={handleClick}
-      disabled={lecture.isActive || sessionStatus !== 'ACTIVE'}
+      disabled={lecture.isActive || !isActive}
       className={`flex items-center gap-2 ${lecture.isActive ? 'bg-blue-50' : ''}`}
     >
       <Badge variant="outline" className="min-w-6 justify-center">
@@ -303,6 +307,8 @@ interface CenterSectionProps {
 }
 
 function CenterSection({ sessionStatus, onStart, onPause, onResume, onNextStep, onEnd }: CenterSectionProps) {
+  const isActive = sessionStatus === 'ACTIVE' || sessionStatus === 'IN_PROGRESS';
+
   return (
     <div className="flex items-center gap-2">
       {sessionStatus === 'CREATED' && (
@@ -317,7 +323,7 @@ function CenterSection({ sessionStatus, onStart, onPause, onResume, onNextStep, 
         </Button>
       )}
 
-      {sessionStatus === 'ACTIVE' && (
+      {isActive && (
         <>
           <OutlineButton onClick={onPause} icon={Pause} label="일시정지" hoverBg="rgba(255,255,255,0.1)" />
           <OutlineButton onClick={onNextStep} icon={SkipForward} label="다음 단계" hoverBg="rgba(255,255,255,0.1)" />
@@ -336,8 +342,17 @@ function CenterSection({ sessionStatus, onStart, onPause, onResume, onNextStep, 
         </Button>
       )}
 
-      {(sessionStatus === 'ACTIVE' || sessionStatus === 'PAUSED') && (
+      {(isActive || sessionStatus === 'PAUSED') && (
         <OutlineButton onClick={onEnd} icon={Square} label="종료" hoverBg="#dc2626" />
+      )}
+
+      {sessionStatus === 'REVIEW_MODE' && (
+        <Badge
+          className="h-10 px-4 flex items-center"
+          style={{ backgroundColor: 'rgba(255,255,255,0.2)', color: 'white' }}
+        >
+          수업 종료됨
+        </Badge>
       )}
     </div>
   );
@@ -374,11 +389,11 @@ interface RightSectionProps {
 }
 
 function RightSection({ sessionStatus, elapsedTime, onLogout }: RightSectionProps) {
+  const showTimer = sessionStatus === 'ACTIVE' || sessionStatus === 'IN_PROGRESS' || sessionStatus === 'PAUSED' || sessionStatus === 'REVIEW_MODE';
+
   return (
     <div className="flex items-center gap-4">
-      {(sessionStatus === 'ACTIVE' || sessionStatus === 'PAUSED') && (
-        <Timer elapsedTime={elapsedTime} />
-      )}
+      {showTimer && <Timer elapsedTime={elapsedTime} />}
       <UserMenu onLogout={onLogout} />
     </div>
   );

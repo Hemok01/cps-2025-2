@@ -3,6 +3,7 @@ package com.example.mobilegpt_instructor.presentation.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.mobilegpt_instructor.data.model.AccessibilityEventData
+import com.example.mobilegpt_instructor.data.model.RecordingListItem
 import com.example.mobilegpt_instructor.data.model.RecordingResponse
 import com.example.mobilegpt_instructor.data.repository.RecordingRepository
 import kotlinx.coroutines.Job
@@ -30,8 +31,8 @@ class RecordingViewModel : ViewModel() {
     val currentRecording: StateFlow<RecordingResponse?> = _currentRecording.asStateFlow()
 
     // 녹화 목록
-    private val _recordings = MutableStateFlow<List<RecordingResponse>>(emptyList())
-    val recordings: StateFlow<List<RecordingResponse>> = _recordings.asStateFlow()
+    private val _recordings = MutableStateFlow<List<RecordingListItem>>(emptyList())
+    val recordings: StateFlow<List<RecordingListItem>> = _recordings.asStateFlow()
 
     // 이벤트 버퍼 (서버로 전송 전 임시 저장)
     private val eventBuffer = mutableListOf<AccessibilityEventData>()
@@ -58,7 +59,7 @@ class RecordingViewModel : ViewModel() {
         }
     }
 
-    // 새 녹화 생성
+    // 새 녹화 생성 (생성과 동시에 RECORDING 상태로 시작됨)
     fun createRecording(title: String, description: String = "") {
         viewModelScope.launch {
             _uiState.value = RecordingUiState.Loading
@@ -66,6 +67,7 @@ class RecordingViewModel : ViewModel() {
             repository.createRecording(title, description)
                 .onSuccess { recording ->
                     _currentRecording.value = recording
+                    // 백엔드에서 생성 시 바로 RECORDING 상태로 시작됨
                     _uiState.value = RecordingUiState.Created(recording)
                 }
                 .onFailure { e ->
@@ -74,21 +76,13 @@ class RecordingViewModel : ViewModel() {
         }
     }
 
-    // 녹화 시작
+    // 녹화 시작 (이벤트 캡처 시작)
     fun startRecording() {
-        val recordingId = _currentRecording.value?.id ?: return
+        val recording = _currentRecording.value ?: return
 
-        viewModelScope.launch {
-            repository.startRecording(recordingId)
-                .onSuccess { recording ->
-                    _currentRecording.value = recording
-                    _uiState.value = RecordingUiState.Recording(recording)
-                    startFlushTimer()
-                }
-                .onFailure { e ->
-                    _uiState.value = RecordingUiState.Error(e.message ?: "시작 실패")
-                }
-        }
+        // 이미 RECORDING 상태이므로 바로 녹화 상태로 전환
+        _uiState.value = RecordingUiState.Recording(recording)
+        startFlushTimer()
     }
 
     // 녹화 중지
@@ -153,9 +147,31 @@ class RecordingViewModel : ViewModel() {
         }
     }
 
-    // 녹화 선택 (목록에서)
-    fun selectRecording(recording: RecordingResponse) {
-        _currentRecording.value = recording
+    // 녹화 선택 (목록에서) - 상세 정보 조회
+    fun selectRecording(recording: RecordingListItem) {
+        viewModelScope.launch {
+            repository.getRecording(recording.id)
+                .onSuccess { fullRecording ->
+                    _currentRecording.value = fullRecording
+                }
+                .onFailure {
+                    // 실패 시 기본 정보만으로 임시 객체 생성
+                    _currentRecording.value = RecordingResponse(
+                        id = recording.id,
+                        title = recording.title,
+                        description = "",
+                        status = recording.status,
+                        startedAt = recording.startedAt,
+                        endedAt = recording.endedAt,
+                        eventCount = recording.eventCount,
+                        stepCount = 0,
+                        analysisResult = null,
+                        analyzedAt = null,
+                        analysisError = null,
+                        createdAt = recording.createdAt
+                    )
+                }
+        }
     }
 
     // 상태 초기화

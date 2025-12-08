@@ -1057,3 +1057,134 @@ class SessionCompletionStatusView(APIView):
             'participants': completion_data,
             'subtask_completion_stats': subtask_stats
         })
+
+
+class SessionSummaryView(APIView):
+    """
+    세션 종료 후 요약 정보 조회 (강사용)
+    GET /api/sessions/{session_id}/summary/
+
+    수업 종료 후 강사가 빠르게 확인할 수 있는 요약 정보를 제공합니다.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, session_id):
+        from apps.help.models import HelpRequest
+        from apps.tasks.models import Subtask
+        from collections import Counter
+        from django.db.models import Count
+
+        session = get_object_or_404(
+            LectureSession.objects.select_related('lecture', 'instructor'),
+            pk=session_id
+        )
+
+        # 강사 권한 확인
+        if session.instructor != request.user:
+            return Response(
+                {'error': '강사만 세션 요약을 조회할 수 있습니다.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # 참가자 정보
+        participants = session.participants.all()
+        total_participants = participants.count()
+
+        # 완료율 계산
+        completed_participants = participants.filter(status='COMPLETED').count()
+        completion_rate = (completed_participants / total_participants * 100) if total_participants > 0 else 0
+
+        # 전체 단계 수
+        total_subtasks = 0
+        if session.lecture:
+            total_subtasks = Subtask.objects.filter(
+                task__lecture=session.lecture
+            ).count()
+
+        # 참가자별 진행률 계산
+        participant_progress = []
+        all_completed_subtasks = []
+
+        for p in participants:
+            completed_count = len(p.completed_subtasks or [])
+            all_completed_subtasks.extend(p.completed_subtasks or [])
+
+            progress_rate = (completed_count / total_subtasks * 100) if total_subtasks > 0 else 0
+
+            participant_progress.append({
+                'id': p.id,
+                'name': p.display_name or p.participant_name,
+                'status': p.status,
+                'completedCount': completed_count,
+                'totalSteps': total_subtasks,
+                'progressRate': round(progress_rate, 1),
+                'joinedAt': p.joined_at.isoformat() if p.joined_at else None,
+                'completedAt': p.completed_at.isoformat() if p.completed_at else None,
+            })
+
+        # 평균 진행률
+        avg_progress = sum(p['progressRate'] for p in participant_progress) / total_participants if total_participants > 0 else 0
+
+        # 도움 요청 통계
+        help_requests = HelpRequest.objects.filter(session=session)
+        total_help_requests = help_requests.count()
+        resolved_help_requests = help_requests.filter(status='RESOLVED').count()
+
+        # 어려운 단계 분석 (도움 요청이 많은 단계)
+        help_by_subtask = help_requests.values('subtask_id', 'subtask__title').annotate(
+            count=Count('id')
+        ).order_by('-count')[:5]
+
+        difficult_steps = [
+            {
+                'subtaskId': item['subtask_id'],
+                'subtaskName': item['subtask__title'],
+                'helpRequestCount': item['count'],
+            }
+            for item in help_by_subtask if item['subtask_id']
+        ]
+
+        # 단계별 완료 통계
+        subtask_completion_stats = dict(Counter(all_completed_subtasks))
+
+        # 세션 시간 계산
+        duration_seconds = 0
+        if session.started_at and session.ended_at:
+            duration_seconds = int((session.ended_at - session.started_at).total_seconds())
+        elif session.started_at:
+            duration_seconds = int((timezone.now() - session.started_at).total_seconds())
+
+        return Response({
+            'sessionId': session.id,
+            'sessionTitle': session.title,
+            'sessionCode': session.session_code,
+            'lectureId': session.lecture.id if session.lecture else None,
+            'lectureName': session.lecture.title if session.lecture else None,
+            'status': session.status,
+
+            # 시간 정보
+            'startedAt': session.started_at.isoformat() if session.started_at else None,
+            'endedAt': session.ended_at.isoformat() if session.ended_at else None,
+            'durationSeconds': duration_seconds,
+
+            # 참가자 통계
+            'totalParticipants': total_participants,
+            'completedParticipants': completed_participants,
+            'completionRate': round(completion_rate, 1),
+            'avgProgress': round(avg_progress, 1),
+
+            # 단계 정보
+            'totalSteps': total_subtasks,
+            'subtaskCompletionStats': subtask_completion_stats,
+
+            # 도움 요청 통계
+            'totalHelpRequests': total_help_requests,
+            'resolvedHelpRequests': resolved_help_requests,
+            'helpResolutionRate': round(resolved_help_requests / total_help_requests * 100, 1) if total_help_requests > 0 else 100,
+
+            # 어려운 단계
+            'difficultSteps': difficult_steps,
+
+            # 참가자 상세
+            'participants': participant_progress,
+        })

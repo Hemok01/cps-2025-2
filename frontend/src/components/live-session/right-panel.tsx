@@ -6,7 +6,7 @@ import { Badge } from '../ui/badge';
 import { ScrollArea } from '../ui/scroll-area';
 import { Input } from '../ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-import { CheckCircle, HelpCircle, AlertTriangle, Info, Send, Brain, TrendingUp, TrendingDown, Lightbulb } from 'lucide-react';
+import { CheckCircle, HelpCircle, AlertTriangle, Info, Send, Brain, TrendingUp, TrendingDown, Lightbulb, Monitor } from 'lucide-react';
 
 // Constants
 const NOTIFICATION_STYLES = {
@@ -67,6 +67,7 @@ interface RightPanelProps {
   groupProgress: GroupProgress[];
   notifications: LiveNotification[];
   onResolveNotification: (notificationId: number) => void;
+  onViewScreen?: (notification: LiveNotification) => void;
 }
 
 interface ChatMessage {
@@ -81,6 +82,7 @@ export function RightPanel({
   groupProgress,
   notifications,
   onResolveNotification,
+  onViewScreen,
 }: RightPanelProps) {
   const [chatMessage, setChatMessage] = useState('');
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
@@ -138,6 +140,7 @@ export function RightPanel({
         <NotificationsTab
           notifications={notifications}
           onResolve={onResolveNotification}
+          onViewScreen={onViewScreen}
         />
         <AIInsightsTab groupProgress={groupProgress} />
         <ChatTab
@@ -224,9 +227,10 @@ function AvatarWithStatus({ isOnline, marginLeft, zIndex }: AvatarWithStatusProp
 interface NotificationsTabProps {
   notifications: LiveNotification[];
   onResolve: (id: number) => void;
+  onViewScreen?: (notification: LiveNotification) => void;
 }
 
-function NotificationsTab({ notifications, onResolve }: NotificationsTabProps) {
+function NotificationsTab({ notifications, onResolve, onViewScreen }: NotificationsTabProps) {
   return (
     <TabsContent value="notifications" className="flex-1 m-0 overflow-hidden">
       <ScrollArea className="h-full">
@@ -239,6 +243,7 @@ function NotificationsTab({ notifications, onResolve }: NotificationsTabProps) {
                 key={notification.id}
                 notification={notification}
                 onResolve={onResolve}
+                onViewScreen={onViewScreen}
               />
             ))
           )}
@@ -260,11 +265,13 @@ function EmptyNotifications() {
 interface NotificationCardProps {
   notification: LiveNotification;
   onResolve: (id: number) => void;
+  onViewScreen?: (notification: LiveNotification) => void;
 }
 
-function NotificationCard({ notification, onResolve }: NotificationCardProps) {
+function NotificationCard({ notification, onResolve, onViewScreen }: NotificationCardProps) {
   const style = NOTIFICATION_STYLES[notification.type as keyof typeof NOTIFICATION_STYLES] || NOTIFICATION_STYLES.default;
   const Icon = style.icon;
+  const isHelpRequest = notification.type === 'help_request';
 
   return (
     <div
@@ -295,14 +302,28 @@ function NotificationCard({ notification, onResolve }: NotificationCardProps) {
         <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
           {getRelativeTime(notification.timestamp)}
         </span>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => onResolve(notification.id)}
-          className="h-7 text-xs"
-        >
-          확인
-        </Button>
+        <div className="flex items-center gap-2">
+          {isHelpRequest && onViewScreen && (
+            <Button
+              size="sm"
+              variant="default"
+              onClick={() => onViewScreen(notification)}
+              className="h-7 text-xs gap-1"
+              style={{ backgroundColor: 'var(--primary)' }}
+            >
+              <Monitor className="w-3 h-3" />
+              화면 보기
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => onResolve(notification.id)}
+            className="h-7 text-xs"
+          >
+            확인
+          </Button>
+        </div>
       </div>
     </div>
   );

@@ -40,6 +40,7 @@ const STATUS_CONFIG = {
   IN_PROGRESS: { label: '진행 중', bgColor: 'var(--success)', textColor: 'white' },
   PAUSED: { label: '일시정지', bgColor: 'var(--warning)', textColor: 'white' },
   ENDED: { label: '종료됨', bgColor: 'var(--status-inactive)', textColor: 'white' },
+  REVIEW_MODE: { label: '복습 모드', bgColor: 'var(--info)', textColor: 'white' },
 } as const;
 
 export function LiveSessionPage() {
@@ -55,6 +56,8 @@ export function LiveSessionPage() {
   const [selectedStudentId, setSelectedStudentId] = useState<number | null>(null);
   // 도움 요청으로 스크린샷이 설정된 경우 API 호출을 스킵하기 위한 ref
   const skipScreenLoadRef = useRef<number | null>(null);
+  // 도움 요청 중복 방지를 위한 ref (user_id -> 마지막 요청 시간)
+  const helpRequestTimestampsRef = useRef<Map<number, number>>(new Map());
   const [loading, setLoading] = useState(true);
   const [activeSessions, setActiveSessions] = useState<Session[]>([]);
   const [wsConnectionInfo, setWsConnectionInfo] = useState<WebSocketConnectionInfo>({
@@ -139,11 +142,21 @@ export function LiveSessionPage() {
 
       case 'session_status_changed':
         // Update session status
+        const newStatus = message.status?.toUpperCase() || message.data?.status?.toUpperCase() || 'ACTIVE';
         setSessionData(prev => prev ? {
           ...prev,
-          status: message.data.status.toUpperCase() as 'ACTIVE' | 'PAUSED' | 'COMPLETED',
+          status: newStatus as 'CREATED' | 'ACTIVE' | 'IN_PROGRESS' | 'PAUSED' | 'ENDED' | 'REVIEW_MODE',
         } : null);
-        toast.info(`세션 상태: ${message.data.status === 'active' ? '진행 중' : message.data.status === 'paused' ? '일시정지' : '완료'}`);
+
+        // Status changed to REVIEW_MODE or ENDED means session ended
+        if (newStatus === 'REVIEW_MODE' || newStatus === 'ENDED') {
+          toast.success('수업이 종료되었습니다. 요약 페이지로 이동합니다.');
+          setTimeout(() => {
+            navigate(`/sessions/${sessionId}/summary`);
+          }, 1500);
+        } else {
+          toast.info(`세션 상태: ${newStatus === 'ACTIVE' || newStatus === 'IN_PROGRESS' ? '진행 중' : newStatus === 'PAUSED' ? '일시정지' : newStatus}`);
+        }
         break;
 
       case 'participant_joined':
@@ -194,6 +207,17 @@ export function LiveSessionPage() {
       case 'help_requested':
         // Update student status to help_needed
         const helpData = message.data;
+
+        // 중복 방지: 동일한 user_id에서 5초 이내 요청이 있었으면 무시
+        const now = Date.now();
+        const lastHelpTime = helpRequestTimestampsRef.current.get(helpData.user_id);
+        if (lastHelpTime && now - lastHelpTime < 5000) {
+          console.log('[LiveSession] Skipping duplicate help request (within 5s):', helpData.user_id);
+          break;
+        }
+        // 마지막 요청 시간 기록
+        helpRequestTimestampsRef.current.set(helpData.user_id, now);
+
         setStudents(prev => prev.map(student => {
           if (student.id === helpData.user_id) {
             return {
@@ -218,46 +242,8 @@ export function LiveSessionPage() {
           isResolved: false,
           screenshotUrl: helpData.screenshot_url, // 스크린샷 URL 추가
         };
-        // 중복 알림 방지: 동일한 user_id + 비슷한 시간(5초 이내)의 알림이 있으면 추가하지 않음
-        setNotifications(prev => {
-          const recentDuplicate = prev.find(n =>
-            n.studentId === helpData.user_id &&
-            n.type === 'help_request' &&
-            Math.abs(new Date(n.timestamp).getTime() - Date.now()) < 5000
-          );
-          if (recentDuplicate) {
-            console.log('[LiveSession] Skipping duplicate help request notification');
-            return prev;
-          }
-          return [newNotification, ...prev];
-        });
 
-        // 도움 요청 학생으로 자동 이동 및 스크린샷 표시
-        if (helpData.user_id) {
-          let fullImageUrl: string | undefined;
-
-          // 스크린샷이 있으면 URL 변환
-          if (helpData.screenshot_url) {
-            const backendUrl = import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:8000';
-            fullImageUrl = helpData.screenshot_url.startsWith('http')
-              ? helpData.screenshot_url
-              : `${backendUrl}${helpData.screenshot_url}`;
-          }
-
-          // API 호출 스킵 플래그 설정 (useEffect보다 먼저 실행)
-          skipScreenLoadRef.current = helpData.user_id;
-
-          setStudentScreen({
-            studentId: helpData.user_id,
-            studentName: helpData.username,
-            imageUrl: fullImageUrl,
-            lastUpdated: helpData.timestamp || new Date().toISOString(),
-            isLoading: false,
-            error: fullImageUrl ? undefined : '스크린샷이 전송되지 않았습니다',
-          });
-          setSelectedStudentId(helpData.user_id);
-        }
-
+        setNotifications(prev => [newNotification, ...prev]);
         toast.warning(`🆘 도움 요청: ${helpData.username}${helpData.screenshot_url ? ' (스크린샷 포함)' : ''}`);
         break;
 
@@ -326,7 +312,7 @@ export function LiveSessionPage() {
       default:
         console.warn('[LiveSession] Unknown message type:', message.type);
     }
-  }, [loadStudents, selectedStudentId]);
+  }, [loadStudents, selectedStudentId, navigate, sessionId]);
 
   // Setup WebSocket connection after initial data is loaded
   useEffect(() => {
@@ -580,12 +566,12 @@ export function LiveSessionPage() {
 
     try {
       await liveSessionService.endSession(parseInt(sessionId));
-      toast.success('수업이 종료되었습니다');
+      toast.success('수업이 종료되었습니다. 요약 페이지로 이동합니다.');
 
-      // 세션 목록으로 이동
+      // 세션 요약 페이지로 이동
       setTimeout(() => {
-        navigate('/sessions');
-      }, 1500);
+        navigate(`/sessions/${sessionId}/summary`);
+      }, 1000);
     } catch (error) {
       toast.error('수업 종료에 실패했습니다');
     }
@@ -653,6 +639,44 @@ export function LiveSessionPage() {
   const handleTakeSnapshot = () => {
     // TODO: Implement snapshot functionality
     toast.success('전체 학생 화면 스냅샷을 저장했습니다');
+  };
+
+  const handleViewScreen = (notification: LiveNotification) => {
+    if (!notification.studentId) {
+      toast.error('학생 정보를 찾을 수 없습니다');
+      return;
+    }
+
+    let fullImageUrl: string | undefined;
+
+    // 스크린샷이 있으면 URL 변환
+    if (notification.screenshotUrl) {
+      const backendUrl = import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:8000';
+      fullImageUrl = notification.screenshotUrl.startsWith('http')
+        ? notification.screenshotUrl
+        : `${backendUrl}${notification.screenshotUrl}`;
+    }
+
+    // API 호출 스킵 플래그 설정 (useEffect보다 먼저 실행)
+    skipScreenLoadRef.current = notification.studentId;
+
+    setStudentScreen({
+      studentId: notification.studentId,
+      studentName: notification.studentName || '',
+      imageUrl: fullImageUrl,
+      lastUpdated: notification.timestamp || new Date().toISOString(),
+      isLoading: false,
+      error: fullImageUrl ? undefined : '스크린샷이 전송되지 않았습니다',
+    });
+    setSelectedStudentId(notification.studentId);
+
+    // 학생 선택 상태 업데이트
+    setStudents(prev => prev.map(s => ({
+      ...s,
+      isSelected: s.id === notification.studentId,
+    })));
+
+    toast.info(`${notification.studentName}님의 화면을 확인합니다`);
   };
 
   // Loading state
@@ -808,10 +832,10 @@ export function LiveSessionPage() {
       />
 
       {/* Main Content - 3 Column Layout */}
-      <div 
+      <div
         className="flex-1 flex overflow-hidden"
-        style={{ 
-          paddingTop: sessionData.status === 'ACTIVE' || sessionData.status === 'PAUSED' ? '112px' : '64px' 
+        style={{
+          paddingTop: ['ACTIVE', 'IN_PROGRESS', 'PAUSED', 'REVIEW_MODE'].includes(sessionData.status) ? '112px' : '64px'
         }}
       >
         {/* Left Panel */}
@@ -842,6 +866,7 @@ export function LiveSessionPage() {
           groupProgress={groupProgress}
           notifications={notifications}
           onResolveNotification={handleResolveNotification}
+          onViewScreen={handleViewScreen}
         />
       </div>
 

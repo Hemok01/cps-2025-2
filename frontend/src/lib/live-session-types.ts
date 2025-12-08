@@ -9,7 +9,7 @@ export interface LiveSessionData {
   lectureDate: string;
   instructor: string;
   totalStudents: number;
-  status: 'CREATED' | 'ACTIVE' | 'PAUSED' | 'ENDED';
+  status: 'CREATED' | 'ACTIVE' | 'IN_PROGRESS' | 'PAUSED' | 'ENDED' | 'REVIEW_MODE';
   startedAt?: string;
   lectures?: SessionLecture[]; // Multiple lectures in session
   activeLectureId?: number;

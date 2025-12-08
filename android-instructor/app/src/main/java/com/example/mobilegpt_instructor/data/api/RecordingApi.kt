@@ -10,17 +10,13 @@ interface RecordingApi {
     @POST("sessions/recordings/")
     suspend fun createRecording(@Body request: CreateRecordingRequest): Response<RecordingResponse>
 
-    // 녹화 목록 조회
+    // 녹화 목록 조회 (페이지네이션)
     @GET("sessions/recordings/")
-    suspend fun getRecordings(): Response<List<RecordingResponse>>
+    suspend fun getRecordings(): Response<PaginatedResponse<RecordingListItem>>
 
     // 녹화 상세 조회
     @GET("sessions/recordings/{id}/")
     suspend fun getRecording(@Path("id") id: Int): Response<RecordingResponse>
-
-    // 녹화 시작
-    @POST("sessions/recordings/{id}/start/")
-    suspend fun startRecording(@Path("id") id: Int): Response<RecordingResponse>
 
     // 녹화 중지
     @POST("sessions/recordings/{id}/stop/")

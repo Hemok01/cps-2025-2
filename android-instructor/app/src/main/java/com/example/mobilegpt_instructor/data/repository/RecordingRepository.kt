@@ -21,19 +21,24 @@ class RecordingRepository {
         }
     }
 
-    // 녹화 목록 조회
-    suspend fun getRecordings(): Result<List<RecordingResponse>> {
-        return safeApiCall { api.getRecordings() }
+    // 녹화 목록 조회 (페이지네이션에서 results 추출)
+    suspend fun getRecordings(): Result<List<RecordingListItem>> {
+        return try {
+            val response = api.getRecordings()
+            if (response.isSuccessful) {
+                val paginatedResponse = response.body()!!
+                Result.success(paginatedResponse.results)
+            } else {
+                Result.failure(Exception("녹화 목록 조회 실패 (${response.code()})"))
+            }
+        } catch (e: Exception) {
+            Result.failure(Exception("네트워크 오류: ${e.message}"))
+        }
     }
 
     // 녹화 상세 조회
     suspend fun getRecording(id: Int): Result<RecordingResponse> {
         return safeApiCall { api.getRecording(id) }
-    }
-
-    // 녹화 시작
-    suspend fun startRecording(id: Int): Result<RecordingResponse> {
-        return safeApiCall { api.startRecording(id) }
     }
 
     // 녹화 중지

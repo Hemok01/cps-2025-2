@@ -68,14 +68,14 @@ fun NavGraph(
                 onStartNewRecording = {
                     navController.navigate(Screen.Recording.route)
                 },
-                onRecordingClick = { recording ->
-                    recordingViewModel.selectRecording(recording)
+                onRecordingClick = { recordingItem ->
+                    recordingViewModel.selectRecording(recordingItem)
 
                     // 상태에 따라 다른 화면으로 이동
-                    when (recording.status) {
+                    when (recordingItem.status) {
                         "COMPLETED" -> {
                             // 녹화 완료 - 분석 화면으로
-                            navController.navigate(Screen.Analysis.createRoute(recording.id))
+                            navController.navigate(Screen.Analysis.createRoute(recordingItem.id))
                         }
                         "ANALYZED" -> {
                             // 분석 완료 - 단계 검토 화면으로
