@@ -72,6 +72,44 @@ class Subtask(models.Model):
         blank=True,
         verbose_name='음성 안내 문구'
     )
+
+    # === Flask 원본 서버와 동기화를 위한 추가 필드 ===
+    time = models.BigIntegerField(
+        null=True, blank=True,
+        verbose_name='이벤트 시간',
+        help_text='이벤트 발생 시간 (Unix 밀리초)'
+    )
+    text = models.TextField(
+        blank=True, default='',
+        verbose_name='UI 텍스트',
+        help_text='UI 요소의 표시 텍스트'
+    )
+    content_description = models.CharField(
+        max_length=500, blank=True, default='',
+        verbose_name='접근성 설명',
+        help_text='contentDescription 값'
+    )
+    view_id = models.CharField(
+        max_length=255, blank=True, default='',
+        verbose_name='뷰 ID',
+        help_text='viewId 리소스 이름'
+    )
+    bounds = models.CharField(
+        max_length=100, blank=True, default='',
+        verbose_name='화면 좌표',
+        help_text='UI 요소 위치 [x1,y1][x2,y2]'
+    )
+    target_package = models.CharField(
+        max_length=255, blank=True, default='',
+        verbose_name='패키지명',
+        help_text='앱 패키지 이름'
+    )
+    target_class = models.CharField(
+        max_length=255, blank=True, default='',
+        verbose_name='클래스명',
+        help_text='UI 요소 클래스명'
+    )
+
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='생성일시')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='수정일시')
 

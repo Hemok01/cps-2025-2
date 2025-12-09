@@ -7,7 +7,7 @@ import logging
 from typing import List, Dict, Optional
 from django.conf import settings
 from django.utils import timezone
-import openai
+from openai import OpenAI
 
 logger = logging.getLogger(__name__)
 
@@ -31,13 +31,17 @@ class RecordingAnalysisService:
 
     def __init__(self):
         """OpenAI API 초기화"""
+        import os
         self.api_key = getattr(settings, 'OPENAI_API_KEY', None)
         self.model = getattr(settings, 'OPENAI_MODEL', 'gpt-4o-mini')
+        self.client = None
 
         if not self.api_key:
             logger.warning("OpenAI API key is not configured")
         else:
-            openai.api_key = self.api_key
+            # 환경변수로 설정 (httpx proxies 충돌 방지)
+            os.environ['OPENAI_API_KEY'] = self.api_key
+            self.client = OpenAI()
 
     def analyze_recording(self, recording_session_id: int) -> Dict:
         """
@@ -157,15 +161,15 @@ class RecordingAnalysisService:
         Returns:
             List of step objects
         """
-        if not self.api_key:
+        if not self.client:
             raise ValueError("OpenAI API key is not configured")
 
         # 프롬프트 생성 (mobilegpt2에서 이식)
         prompt = self._build_prompt(events)
 
         try:
-            # OpenAI API 호출
-            response = openai.ChatCompletion.create(
+            # OpenAI API 호출 (새로운 1.0.0+ 방식)
+            response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {"role": "user", "content": prompt}

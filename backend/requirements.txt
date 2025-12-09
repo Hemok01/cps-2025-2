@@ -30,7 +30,7 @@ hiredis==2.3.2
 celery==5.3.4
 
 # AI/ML
-openai==1.6.1
+openai>=1.40.0
 
 # Utilities
 python-dotenv==1.0.0

@@ -1,3 +1,6 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -5,11 +8,11 @@ plugins {
 }
 
 android {
-    namespace = "com.mobilegpt.instructor"
+    namespace = "com.example.mobilegpt"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.mobilegpt.instructor"
+        applicationId = "com.example.mobilegpt"
         minSdk = 26
         targetSdk = 36
         versionCode = 1
@@ -17,19 +20,34 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // API Base URL (로컬 개발용 - 에뮬레이터에서 10.0.2.2는 호스트 PC를 가리킴)
-        buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:8000/api/\"")
+        // local.properties에서 서버 설정 읽어오기
+        val localPropertiesFile = project.rootProject.file("local.properties")
+        val (serverUrl, serverHost) = if (localPropertiesFile.exists()) {
+            val properties = Properties()
+            properties.load(FileInputStream(localPropertiesFile))
+            val url = properties.getProperty("server.url") ?: "http://localhost:5001"
+            val host = properties.getProperty("server.host") ?: "localhost"
+            Pair(url, host)
+        } else {
+            Pair("http://localhost:5001", "localhost")
+        }
+        buildConfigField("String", "SERVER_URL", "\"$serverUrl\"")
+        buildConfigField("String", "SERVER_HOST", "\"$serverHost\"")
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            // Production URL (필요 시 변경)
-            buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:8000/api/\"")
+        }
+        debug {
+            isMinifyEnabled = false
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-DEBUG"
         }
     }
     compileOptions {
@@ -46,39 +64,46 @@ android {
 }
 
 dependencies {
-    // Core Android
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
-    implementation(libs.androidx.appcompat)
-    implementation(libs.material)
-
-    // Compose
     implementation(libs.androidx.activity.compose)
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
-    implementation(libs.androidx.compose.material.icons)
+    implementation("androidx.compose.material:material-icons-extended")
 
-    // Navigation
-    implementation(libs.androidx.navigation.compose)
+    // ⭐ Navigation
+    implementation("androidx.navigation:navigation-compose:2.7.7")
 
-    // ViewModel
-    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    // ⭐ ViewModel & Compose
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
 
-    // Networking
-    implementation(libs.retrofit)
-    implementation(libs.retrofit.converter.gson)
-    implementation(libs.okhttp)
-    implementation(libs.okhttp.logging)
-    implementation(libs.gson)
+    // ⭐ Retrofit + Gson
+    implementation("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
 
-    // DataStore (토큰 저장용)
-    implementation(libs.datastore.preferences)
+    // ⭐ OKHttp
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
 
-    // Testing
+    // ⭐ Coroutines
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+
+    // ⭐ EncryptedSharedPreferences (JWT 토큰 보안 저장)
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+
+    // Material Design (테마 정의를 위해 필요)
+    implementation("com.google.android.material:material:1.10.0")
+
+    // Unit Test
     testImplementation(libs.junit)
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
+    testImplementation("com.google.code.gson:gson:2.10.1")
+
+    // Instrumented Test
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))

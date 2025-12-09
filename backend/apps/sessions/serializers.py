@@ -170,6 +170,37 @@ class RecordingSessionListSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class RecordingSessionAnalysisSerializer(serializers.ModelSerializer):
+    """분석 결과를 포함한 녹화 세션 시리얼라이저"""
+    step_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = RecordingSession
+        fields = [
+            'id', 'title', 'status',
+            'analysis_result', 'analyzed_at', 'analysis_error',
+            'step_count', 'event_count', 'created_at'
+        ]
+        read_only_fields = fields
+
+    def get_step_count(self, obj):
+        """분석된 단계 수 반환"""
+        if obj.analysis_result and isinstance(obj.analysis_result, list):
+            return len(obj.analysis_result)
+        return 0
+
+
+class RecordingConvertSerializer(serializers.Serializer):
+    """녹화 → 과제 변환 요청 시리얼라이저"""
+    title = serializers.CharField(max_length=255, help_text='생성할 강의 제목')
+    description = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        default='',
+        help_text='강의 설명 (선택)'
+    )
+
+
 # ==================== Screenshot Serializers ====================
 
 class StudentScreenshotSerializer(serializers.ModelSerializer):

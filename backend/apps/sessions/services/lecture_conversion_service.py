@@ -170,7 +170,15 @@ class LectureConversionService:
             target_action=target_action,
             target_element_hint=target_element_hint.strip(),
             guide_text=guide_text,
-            voice_guide_text=voice_guide_text
+            voice_guide_text=voice_guide_text,
+            # Flask 원본 서버 동기화 필드
+            time=step.get('time'),
+            text=step.get('text', ''),
+            content_description=step.get('contentDescription', ''),
+            view_id=step.get('viewId', ''),
+            bounds=step.get('bounds', ''),
+            target_package=step.get('package', ''),
+            target_class=step.get('className', ''),
         )
 
         return subtask

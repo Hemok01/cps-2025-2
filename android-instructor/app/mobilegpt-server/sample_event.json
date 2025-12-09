@@ -1,0 +1,7 @@
+[
+  {"time":1731207000,"package":"com.sec.android.app.launcher","className":"Button","eventType":"TYPE_VIEW_CLICKED","text":"홈","contentDescription":"홈버튼"},
+  {"time":1731207005,"package":"com.google.android.youtube","className":"App","eventType":"TYPE_WINDOW_STATE_CHANGED","text":"","contentDescription":"YouTube 홈"},
+  {"time":1731207010,"package":"com.google.android.youtube","className":"EditText","eventType":"TYPE_VIEW_TEXT_CHANGED","text":"요리법","contentDescription":"검색창"},
+  {"time":1731207015,"package":"com.google.android.youtube","className":"ImageView","eventType":"TYPE_VIEW_CLICKED","text":"","contentDescription":"검색"},
+  {"time":1731207020,"package":"com.google.android.youtube","className":"ImageView","eventType":"TYPE_VIEW_CLICKED","text":"","contentDescription":"영상 배너"}
+]

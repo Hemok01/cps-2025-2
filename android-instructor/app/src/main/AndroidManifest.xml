@@ -1,67 +1,53 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
+    package="com.example.mobilegpt">
 
-    <!-- 인터넷 권한 -->
+    <!-- Required Permissions -->
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-
-    <!-- 접근성 서비스 권한 -->
-    <uses-permission android:name="android.permission.BIND_ACCESSIBILITY_SERVICE"
-        tools:ignore="ProtectedPermissions" />
-
-    <!-- 오버레이 권한 (플로팅 버튼) -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-
-    <!-- 포그라운드 서비스 권한 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- mediaProjection 관련 권한은 필요 없음 -->
 
     <application
-        android:name="com.example.mobilegpt_instructor.InstructorApplication"
         android:allowBackup="true"
+        android:usesCleartextTraffic="true"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
-        android:roundIcon="@mipmap/ic_launcher_round"
-        android:supportsRtl="true"
-        android:theme="@style/Theme.MobileGPTInstructor"
-        android:usesCleartextTraffic="true"
-        tools:targetApi="31">
+        android:theme="@style/Theme.Mobilegpt"
+        android:supportsRtl="true">
 
-        <!-- 메인 액티비티 -->
-        <activity
-            android:name="com.example.mobilegpt_instructor.MainActivity"
-            android:exported="true"
-            android:theme="@style/Theme.MobileGPTInstructor">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-
-        <!-- 접근성 서비스 (녹화용) -->
+        <!-- 🔵 Floating overlay: Foreground Service (dataSync 타입 필수) -->
         <service
-            android:name="com.example.mobilegpt_instructor.service.RecordingAccessibilityService"
+            android:name=".overlay.FloatingOverlayService"
             android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!-- 🔵 AccessibilityService -->
+        <service
+            android:name=".MyAccessibilityService"
+            android:exported="true"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+
             <intent-filter>
                 <action android:name="android.accessibilityservice.AccessibilityService" />
             </intent-filter>
+
             <meta-data
                 android:name="android.accessibilityservice"
                 android:resource="@xml/accessibility_service_config" />
         </service>
 
-        <!-- 플로팅 오버레이 서비스 -->
-        <service
-            android:name="com.example.mobilegpt_instructor.service.FloatingOverlayService"
-            android:exported="false"
-            android:foregroundServiceType="specialUse">
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="recording_control" />
-        </service>
+        <!-- 🔵 Main Activity -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
 
     </application>
 

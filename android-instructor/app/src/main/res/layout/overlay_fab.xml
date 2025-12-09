@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:padding="10dp">
+
+    <ImageButton
+        android:id="@+id/btnRecord"
+        android:layout_width="60dp"
+        android:layout_height="60dp"
+        android:background="@drawable/overlay_fab_background"
+        android:src="@drawable/ic_mic_white"
+        android:contentDescription="Record"
+        android:tint="@android:color/white"/>
+</FrameLayout>

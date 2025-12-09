@@ -298,6 +298,7 @@ class RecordingSession(models.Model):
         ('RECORDING', '녹화 중'),
         ('COMPLETED', '완료'),
         ('PROCESSING', '처리 중'),
+        ('ANALYZED', '분석 완료'),
         ('FAILED', '실패'),
     ]
 
@@ -334,6 +335,25 @@ class RecordingSession(models.Model):
         blank=True,
         related_name='recordings',
         verbose_name='생성된 강의'
+    )
+
+    # AI 분석 관련 필드
+    analysis_result = models.JSONField(
+        null=True,
+        blank=True,
+        verbose_name='분석 결과',
+        help_text='GPT 분석으로 생성된 단계 목록 (JSON Array)'
+    )
+    analysis_error = models.TextField(
+        blank=True,
+        default='',
+        verbose_name='분석 오류 메시지',
+        help_text='분석 실패 시 오류 메시지 저장'
+    )
+    analyzed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='분석 완료 시각'
     )
 
     class Meta:

@@ -259,6 +259,10 @@ CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
 
+# OpenAI Configuration (for Recording Analysis)
+OPENAI_API_KEY = config('OPENAI_API_KEY', default=None)
+OPENAI_MODEL = config('OPENAI_MODEL', default='gpt-4o-mini')
+
 # Session Configuration
 SESSION_CODE_LENGTH = 6
 SESSION_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'  # Excluding similar chars (I, O, 1, 0)

@@ -19,5 +19,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "MobileGPT-Instructor"
+rootProject.name = "mobilegpt"
 include(":app")

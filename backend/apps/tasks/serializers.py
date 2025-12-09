@@ -13,7 +13,10 @@ class SubtaskSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'task', 'title', 'description', 'order_index',
             'target_action', 'target_element_hint', 'guide_text',
-            'voice_guide_text', 'created_at', 'updated_at'
+            'voice_guide_text', 'created_at', 'updated_at',
+            # Flask 원본 서버 동기화 필드
+            'time', 'text', 'content_description', 'view_id',
+            'bounds', 'target_package', 'target_class'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
 
@@ -25,7 +28,10 @@ class SubtaskCreateUpdateSerializer(serializers.ModelSerializer):
         model = Subtask
         fields = [
             'title', 'description', 'order_index', 'target_action',
-            'target_element_hint', 'guide_text', 'voice_guide_text'
+            'target_element_hint', 'guide_text', 'voice_guide_text',
+            # Flask 원본 서버 동기화 필드
+            'time', 'text', 'content_description', 'view_id',
+            'bounds', 'target_package', 'target_class'
         ]
 
 

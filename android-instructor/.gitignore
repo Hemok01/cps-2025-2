@@ -1,0 +1,84 @@
+# ================================
+# Android / Gradle
+# ================================
+*.iml
+.gradle
+.gradle/
+/local.properties
+/.idea/
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# ================================
+# Android Build Outputs
+# ================================
+*.apk
+*.aab
+*.ap_
+*.dex
+/app/build/
+/app/release/
+/app/debug/
+
+# ================================
+# Secrets & Environment
+# ================================
+# IMPORTANT: Never commit API keys or sensitive data
+.env
+*.env
+!.env.example
+
+# Local server configuration
+local.properties
+!local.properties.example
+
+# ================================
+# Server Data (Python Flask)
+# ================================
+# Session recordings and generated curriculum
+# Exclude all files in these directories but keep .gitkeep
+/app/mobilegpt-server/sessions/*
+!/app/mobilegpt-server/sessions/.gitkeep
+/app/mobilegpt-server/curriculum/*
+!/app/mobilegpt-server/curriculum/.gitkeep
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# ================================
+# IDE & Editors
+# ================================
+.idea/
+*.swp
+*.swo
+*~
+.vscode/
+*.code-workspace
+
+# ================================
+# OS Files
+# ================================
+.DS_Store
+Thumbs.db
+*.log
+
+# ================================
+# Misc
+# ================================
+*.bak
+*.tmp
+*.temp
