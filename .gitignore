@@ -76,3 +76,4 @@ kafka_data/
 .env.local
 .env.*.local
 frontend/.env
+mobilegpt2/
