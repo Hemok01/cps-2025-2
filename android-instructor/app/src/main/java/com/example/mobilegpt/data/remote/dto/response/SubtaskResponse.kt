@@ -4,26 +4,26 @@ import com.google.gson.annotations.SerializedName
 
 /**
  * 세부단계 응답
+ * 백엔드 SubtaskSerializer와 일치
  */
 data class SubtaskResponse(
     val id: Long,
-    val step: Int,  // 순서 번호 (1, 2, 3...)
     val title: String,
-    val description: String,
+    val description: String? = null,
     @SerializedName("order_index")
-    val orderIndex: Int,
+    val orderIndex: Int = 0,
     @SerializedName("target_action")
-    val targetAction: String?,  // "CLICK", "LONG_CLICK", "SCROLL", "INPUT", "NAVIGATE"
+    val targetAction: String? = null,  // "CLICK", "LONG_CLICK", "SCROLL", "INPUT", "NAVIGATE"
     @SerializedName("target_package")
-    val targetPackage: String?,
+    val targetPackage: String? = null,
     @SerializedName("target_class")
-    val targetClass: String?,
-    @SerializedName("ui_hint")
-    val uiHint: String?,
+    val targetClass: String? = null,
+    @SerializedName("target_element_hint")  // 백엔드 필드명과 일치
+    val uiHint: String? = null,
     @SerializedName("guide_text")
-    val guideText: String?,
+    val guideText: String? = null,
     @SerializedName("voice_guide_text")
-    val voiceGuideText: String?,
+    val voiceGuideText: String? = null,
 
     // ===== 추가 필드 (Flask 원본 동기화) =====
     val time: Long? = null,
@@ -33,19 +33,22 @@ data class SubtaskResponse(
     @SerializedName("view_id")
     val viewId: String? = null,
     val bounds: String? = null
-)
+) {
+    /** step은 order_index + 1 (1부터 시작하는 순서 번호) */
+    val step: Int get() = orderIndex + 1
+}
 
 /**
  * 세부단계 목록 응답 (Recording 기반)
- * GET /api/sessions/recordings/{id}/subtasks/
+ * GET /api/recordings/{id}/subtasks/
  */
 data class RecordingSubtasksResponse(
     @SerializedName("recording_id")
     val recordingId: Long,
-    @SerializedName("lecture_id")
-    val lectureId: Long? = null,
-    @SerializedName("lecture_title")
-    val lectureTitle: String? = null,
+    @SerializedName("task_id")
+    val taskId: Long? = null,
+    @SerializedName("task_title")
+    val taskTitle: String? = null,
     @SerializedName("subtask_count")
     val subtaskCount: Int? = null,
     val subtasks: List<SubtaskResponse>,

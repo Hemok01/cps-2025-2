@@ -92,6 +92,80 @@ class TaskListView(generics.ListAPIView):
         return Task.objects.filter(lecture_id=lecture_id).prefetch_related('subtasks')
 
 
+class IndependentTaskListView(generics.ListAPIView):
+    """
+    Lecture에 연결되지 않은 독립 Task 목록 조회
+    GET /api/tasks/available/
+
+    안드로이드 앱에서 녹화 → 분석 → 변환으로 생성된 Task들 중
+    아직 강의에 연결되지 않은 것들을 반환합니다.
+    """
+    serializer_class = TaskSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Task.objects.filter(
+            lecture__isnull=True
+        ).prefetch_related('subtasks').order_by('-created_at')
+
+
+class AttachTasksToLectureView(APIView):
+    """
+    기존 독립 Task들을 Lecture에 연결
+    POST /api/lectures/{lecture_pk}/tasks/attach/
+
+    Request Body:
+    {
+        "task_ids": [1, 2, 3]
+    }
+
+    Response:
+    {
+        "message": "3개의 과제가 연결되었습니다",
+        "lecture_id": 1,
+        "attached_task_ids": [1, 2, 3]
+    }
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, lecture_pk):
+        from django.db import models as db_models
+
+        lecture = get_object_or_404(Lecture, pk=lecture_pk)
+        task_ids = request.data.get('task_ids', [])
+
+        if not task_ids:
+            return Response(
+                {'error': 'task_ids가 필요합니다'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        with transaction.atomic():
+            # 기존 order_index 최대값 조회
+            max_order = lecture.tasks.aggregate(
+                max_order=db_models.Max('order_index')
+            )['max_order'] or -1
+
+            updated_tasks = []
+            for idx, task_id in enumerate(task_ids):
+                task = Task.objects.filter(
+                    id=task_id,
+                    lecture__isnull=True
+                ).first()
+
+                if task:
+                    task.lecture = lecture
+                    task.order_index = max_order + idx + 1
+                    task.save()
+                    updated_tasks.append(task.id)
+
+        return Response({
+            'message': f'{len(updated_tasks)}개의 과제가 연결되었습니다',
+            'lecture_id': lecture.id,
+            'attached_task_ids': updated_tasks
+        })
+
+
 class SubtaskBulkUpdateView(APIView):
     """
     Bulk update subtasks for a task

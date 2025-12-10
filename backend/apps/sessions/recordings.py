@@ -16,7 +16,7 @@ from .serializers import (
     RecordingSessionAnalysisSerializer,
     RecordingConvertSerializer
 )
-from .tasks import analyze_recording_task, convert_recording_to_lecture_task
+from .tasks import analyze_recording_task
 from apps.logs.models import ActivityLog
 from apps.logs.serializers import ActivityLogSerializer
 from apps.tasks.models import Subtask
@@ -110,7 +110,7 @@ class RecordingSessionViewSet(viewsets.ModelViewSet):
         serializer = ActivityLogSerializer(events, many=True)
         return Response(serializer.data)
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], url_path='save-events-batch')
     def save_events_batch(self, request, pk=None):
         """
         POST /api/recordings/{id}/save-events-batch/ - 녹화 이벤트 일괄 저장
@@ -136,26 +136,29 @@ class RecordingSessionViewSet(viewsets.ModelViewSet):
 
         # 이벤트 객체 생성 (bulk create 사용)
         activity_logs = []
-        for event_data in events_data:
-            # event_data 구조화
+        for event in events_data:
+            # Android에서 event_data 객체 안에 중첩하여 전송하므로 추출
+            event_data = event.get('event_data', {})
+
+            # event_data 구조화 (JSON 키 이름에 맞춤: class_name, package 등)
             event_obj = {
                 'package': event_data.get('package', ''),
-                'className': event_data.get('className', ''),
-                'text': event_data.get('text', ''),
+                'className': event_data.get('class_name', ''),  # Android: class_name
+                'text': event_data.get('text', []),  # Android에서 List로 전송
             }
 
             activity_log = ActivityLog(
                 user=request.user,
                 recording_session=recording,
-                event_type=event_data.get('eventType', 'CLICK'),
+                event_type=event.get('event_type', 'CLICK'),  # Android: event_type
                 event_data=event_obj,
-                view_id_resource_name=event_data.get('viewId', ''),
-                content_description=event_data.get('contentDescription', ''),
+                view_id_resource_name=event_data.get('view_id', ''),  # Android: view_id
+                content_description=event_data.get('content_description', ''),  # Android: content_description
                 bounds=event_data.get('bounds', ''),
-                is_clickable=event_data.get('isClickable', False),
-                is_editable=event_data.get('isEditable', False),
-                is_enabled=event_data.get('isEnabled', True),
-                is_focused=event_data.get('isFocused', False),
+                is_clickable=event_data.get('is_clickable', False),
+                is_editable=event_data.get('is_editable', False),
+                is_enabled=event_data.get('is_enabled', True),
+                is_focused=event_data.get('is_focused', False),
             )
             activity_logs.append(activity_log)
 
@@ -224,15 +227,18 @@ class RecordingSessionViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='convert-to-task')
     def convert_to_task(self, request, pk=None):
         """
-        POST /api/sessions/recordings/{id}/convert-to-task/
-        분석된 녹화를 강의/과제로 변환 (비동기)
+        POST /api/recordings/{id}/convert-to-task/
+        분석된 녹화를 과제(Task)로 변환 (동기 - DB 작업만 수행)
 
         Request Body:
         {
-            "title": "강의 제목",
-            "description": "강의 설명 (선택)"
+            "title": "과제 제목",
+            "description": "과제 설명 (선택)",
+            "lecture_id": 1  // 연결할 강의 ID (선택)
         }
         """
+        from .services import TaskConversionService
+
         recording = self.get_object()
 
         # 상태 확인: ANALYZED만 변환 가능
@@ -242,10 +248,10 @@ class RecordingSessionViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # 이미 변환된 강의가 있는지 확인
-        if recording.lecture:
+        # 이미 변환된 과제가 있는지 확인
+        if recording.task:
             return Response(
-                {'error': '이미 변환된 강의가 있습니다.', 'lecture_id': recording.lecture.id},
+                {'error': '이미 변환된 과제가 있습니다.', 'task_id': recording.task.id},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -255,67 +261,79 @@ class RecordingSessionViewSet(viewsets.ModelViewSet):
 
         title = serializer.validated_data['title']
         description = serializer.validated_data.get('description', '')
+        lecture_id = serializer.validated_data.get('lecture_id')
 
-        # 비동기 태스크 시작
-        convert_recording_to_lecture_task.delay(
+        # 동기 변환 (DB 작업만이므로 빠름)
+        service = TaskConversionService()
+        result = service.convert_to_task(
             recording_session_id=recording.id,
             title=title,
-            description=description
+            description=description,
+            lecture_id=lecture_id
         )
 
-        return Response({
-            'message': '강의 변환이 시작되었습니다.',
-            'recording_id': recording.id,
-            'title': title
-        }, status=status.HTTP_202_ACCEPTED)
+        if result.get('success'):
+            return Response({
+                'message': '과제 변환이 완료되었습니다.',
+                'task_id': result['task_id'],
+                'task_title': result['task_title'],
+                'subtask_count': result['subtask_count'],
+                'lecture_id': result.get('lecture_id')
+            }, status=status.HTTP_201_CREATED)
+        else:
+            return Response(
+                {'error': result.get('error', '변환 실패')},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
     @action(detail=True, methods=['get'])
     def subtasks(self, request, pk=None):
         """
-        GET /api/sessions/recordings/{id}/subtasks/
+        GET /api/recordings/{id}/subtasks/
         녹화에서 생성된 Subtask 목록 조회
 
-        녹화가 강의로 변환된 경우에만 Subtask를 반환합니다.
+        녹화가 과제(Task)로 변환된 경우에만 Subtask를 반환합니다.
         변환되지 않은 경우 적절한 안내 메시지를 반환합니다.
         """
         recording = self.get_object()
 
-        # 녹화가 강의로 변환되었는지 확인
-        if not recording.lecture:
+        # 녹화가 과제로 변환되었는지 확인
+        if not recording.task:
             # 분석 상태에 따라 다른 메시지 반환
             if recording.status == 'ANALYZED':
                 return Response({
-                    'error': '녹화가 아직 강의로 변환되지 않았습니다.',
-                    'message': 'POST /api/sessions/recordings/{id}/convert-to-task/ 를 호출하여 강의로 변환하세요.',
+                    'recording_id': recording.id,
+                    'error': '녹화가 아직 과제로 변환되지 않았습니다.',
+                    'message': 'POST /api/recordings/{id}/convert-to-task/ 를 호출하여 과제로 변환하세요.',
                     'recording_status': recording.status,
                     'subtasks': []
                 }, status=status.HTTP_404_NOT_FOUND)
             elif recording.status in ['RECORDING', 'COMPLETED']:
                 return Response({
+                    'recording_id': recording.id,
                     'error': '녹화가 아직 분석되지 않았습니다.',
-                    'message': 'POST /api/sessions/recordings/{id}/analyze/ 를 먼저 호출하세요.',
+                    'message': 'POST /api/recordings/{id}/analyze/ 를 먼저 호출하세요.',
                     'recording_status': recording.status,
                     'subtasks': []
                 }, status=status.HTTP_404_NOT_FOUND)
             else:
                 return Response({
-                    'error': '녹화가 강의로 변환되지 않았습니다.',
+                    'recording_id': recording.id,
+                    'error': '녹화가 과제로 변환되지 않았습니다.',
                     'recording_status': recording.status,
                     'subtasks': []
                 }, status=status.HTTP_404_NOT_FOUND)
 
-        # 변환된 강의의 Task에서 Subtask 조회
-        lecture = recording.lecture
-        subtasks = Subtask.objects.filter(
-            task__lecture=lecture
-        ).select_related('task').order_by('task__order_index', 'order_index')
+        # 변환된 Task에서 Subtask 조회
+        task = recording.task
+        subtasks = task.subtasks.all().order_by('order_index')
 
         serializer = SubtaskSerializer(subtasks, many=True)
 
         return Response({
             'recording_id': recording.id,
-            'lecture_id': lecture.id,
-            'lecture_title': lecture.title,
+            'task_id': task.id,
+            'task_title': task.title,
             'subtask_count': subtasks.count(),
             'subtasks': serializer.data
         })

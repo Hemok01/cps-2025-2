@@ -14,10 +14,10 @@ object Constants {
         const val LOGOUT = "/api/auth/logout/"
         const val ME = "/api/auth/me/"
 
-        // Recordings
-        const val RECORDINGS = "/api/sessions/recordings/"
+        // Recordings (녹화)
+        const val RECORDINGS = "/api/recordings/"
 
-        // Subtasks
+        // Subtasks (단계)
         const val SUBTASKS = "/api/tasks/subtasks/"
 
         // Legacy (Flask 서버 호환용 - 추후 삭제 예정)

@@ -4,7 +4,7 @@ Lecture Session Models (실시간 강의방)
 from django.db import models
 from django.conf import settings
 from apps.lectures.models import Lecture
-from apps.tasks.models import Subtask
+from apps.tasks.models import Task, Subtask
 import random
 import string
 
@@ -327,14 +327,24 @@ class RecordingSession(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='생성일시')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='수정일시')
 
-    # 연결된 강의 (녹화로부터 강의 생성 후)
+    # 변환된 과제 (녹화 → 과제 변환 후)
+    task = models.ForeignKey(
+        Task,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='recordings',
+        verbose_name='변환된 과제'
+    )
+
+    # 연결된 강의 (과제가 속한 강의, 선택적)
     lecture = models.ForeignKey(
         Lecture,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='recordings',
-        verbose_name='생성된 강의'
+        related_name='recording_sessions',
+        verbose_name='연결된 강의'
     )
 
     # AI 분석 관련 필드
@@ -364,6 +374,7 @@ class RecordingSession(models.Model):
             models.Index(fields=['instructor']),
             models.Index(fields=['status']),
             models.Index(fields=['created_at']),
+            models.Index(fields=['task']),
             models.Index(fields=['lecture']),
         ]
         ordering = ['-created_at']

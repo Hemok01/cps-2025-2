@@ -27,7 +27,7 @@ import com.example.mobilegpt.overlay.FloatingOverlayService
 
 @Composable
 fun RecordingScreen(
-    onGotoSessionList: () -> Unit,
+    onGotoRecordingList: () -> Unit,
     onLogout: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
@@ -216,7 +216,7 @@ fun RecordingScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(64.dp),
-                onClick = onGotoSessionList,
+                onClick = onGotoRecordingList,
                 shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.outlinedButtonColors(
                     containerColor = Color.White,

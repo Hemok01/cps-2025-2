@@ -1,7 +1,6 @@
-package com.example.mobilegpt.session
+package com.example.mobilegpt.subtask
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.*
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
@@ -21,17 +20,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mobilegpt.network.ApiClient
+import com.example.mobilegpt.data.remote.dto.request.BulkUpdateSubtasksRequest
+import com.example.mobilegpt.data.remote.dto.request.SubtaskUpdateItem
 import com.example.mobilegpt.data.remote.dto.response.SubtaskResponse
 import com.example.mobilegpt.data.remote.dto.response.RecordingSubtasksResponse
-import com.example.mobilegpt.viewmodel.StepViewModel
+import com.example.mobilegpt.viewmodel.SubtaskViewModel
 import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import androidx.compose.runtime.rememberCoroutineScope
 
-// 스텝 색상 팔레트
-private val stepColors = listOf(
+// 단계 색상 팔레트
+private val subtaskColors = listOf(
     Pair(Color(0xFF2196F3), Color(0xFF3F51B5)),  // Blue to Indigo
     Pair(Color(0xFF9C27B0), Color(0xFFE91E63)),  // Purple to Pink
     Pair(Color(0xFF00BCD4), Color(0xFF2196F3)),  // Cyan to Blue
@@ -39,23 +39,29 @@ private val stepColors = listOf(
     Pair(Color(0xFFFF9800), Color(0xFFF44336)),  // Orange to Red
 )
 
+/**
+ * 단계(Subtask) 목록 화면
+ */
 @Composable
-fun StepListScreen(
-    sessionId: String,
-    viewModel: StepViewModel,
+fun SubtaskListScreen(
+    recordingId: String,
+    viewModel: SubtaskViewModel,
     onEdit: (Int) -> Unit
 ) {
     var loaded by remember { mutableStateOf(false) }
     var subtasks by remember { mutableStateOf<List<SubtaskResponse>>(emptyList()) }
     var statusMessage by remember { mutableStateOf<String?>(null) }
-    var lectureTitle by remember { mutableStateOf<String?>(null) }
+    var taskTitle by remember { mutableStateOf<String?>(null) }
+    var taskId by remember { mutableStateOf<Long?>(null) }
+    var isSaving by remember { mutableStateOf(false) }
+    var saveMessage by remember { mutableStateOf<String?>(null) }
     val coroutineScope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
         try {
-            val recordingId = sessionId.toLongOrNull() ?: return@LaunchedEffect
+            val id = recordingId.toLongOrNull() ?: return@LaunchedEffect
             val response = withContext(Dispatchers.IO) {
-                ApiClient.recordingApi.getSubtasksByRecording(recordingId)
+                ApiClient.recordingApi.getSubtasksByRecording(id)
             }
 
             // 성공 또는 404(분석 안됨/변환 안됨)인 경우 모두 처리
@@ -75,13 +81,14 @@ fun StepListScreen(
 
             if (body != null) {
                 subtasks = body.subtasks
-                lectureTitle = body.lectureTitle
+                taskTitle = body.taskTitle
+                taskId = body.taskId
                 // 변환되지 않은 경우 메시지 표시
                 if (body.error != null) {
                     statusMessage = body.message ?: body.error
                 }
-                // ViewModel에도 저장 (기존 호환성)
-                viewModel.steps = subtasks.map { subtask ->
+                // ViewModel에도 저장
+                viewModel.subtasks = subtasks.map { subtask ->
                     mutableMapOf<String, Any?>(
                         "id" to subtask.id,
                         "step" to subtask.step,
@@ -116,7 +123,7 @@ fun StepListScreen(
             .background(Color(0xFFF9FAFB))
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // 헤더 (스티키)
+            // 헤더
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 color = Color.White,
@@ -128,7 +135,7 @@ fun StepListScreen(
                         .padding(20.dp)
                 ) {
                     Text(
-                        text = lectureTitle ?: "생성된 Step 목록",
+                        text = taskTitle ?: "단계 목록",
                         style = MaterialTheme.typography.headlineMedium.copy(
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF1F2937)
@@ -136,7 +143,7 @@ fun StepListScreen(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "녹화 ID: $sessionId",
+                        text = "녹화 ID: $recordingId",
                         style = MaterialTheme.typography.bodySmall.copy(
                             color = Color(0xFF6B7280)
                         )
@@ -145,7 +152,7 @@ fun StepListScreen(
             }
 
             // 상태 메시지 표시
-            if (statusMessage != null && viewModel.steps.isEmpty()) {
+            if (statusMessage != null && viewModel.subtasks.isEmpty()) {
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -164,131 +171,208 @@ fun StepListScreen(
             }
 
             // 콘텐츠
-            if (!loaded) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(20.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(48.dp),
-                        color = Color(0xFF2196F3),
-                        strokeWidth = 4.dp
-                    )
-                }
-            } else if (viewModel.steps.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(20.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "📝",
-                            fontSize = 64.sp
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = "생성된 스텝이 없습니다",
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                color = Color(0xFF6B7280)
-                            )
+            when {
+                !loaded -> {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(20.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(48.dp),
+                            color = Color(0xFF2196F3),
+                            strokeWidth = 4.dp
                         )
                     }
                 }
-            } else {
-                Box(modifier = Modifier.fillMaxSize()) {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(
-                            start = 20.dp,
-                            end = 20.dp,
-                            top = 20.dp,
-                            bottom = 100.dp  // 하단 버튼 공간
-                        ),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                viewModel.subtasks.isEmpty() -> {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(20.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        items(viewModel.steps.size) { index ->
-                            StepCard(
-                                step = viewModel.steps[index],
-                                index = index,
-                                colorPair = stepColors[index % stepColors.size],
-                                onEdit = { onEdit(index) },
-                                onDelete = {
-                                    // 서버에도 삭제 요청
-                                    val subtaskId = (viewModel.steps.getOrNull(index)?.get("id") as? Number)?.toLong()
-                                    if (subtaskId != null) {
-                                        coroutineScope.launch {
-                                            try {
-                                                withContext(Dispatchers.IO) {
-                                                    ApiClient.recordingApi.deleteSubtask(subtaskId)
-                                                }
-                                            } catch (e: Exception) {
-                                                // 오류 무시
-                                            }
-                                        }
-                                    }
-                                    viewModel.deleteStep(index)
-                                }
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(text = "📝", fontSize = 64.sp)
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                text = "생성된 단계가 없습니다",
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    color = Color(0xFF6B7280)
+                                )
                             )
                         }
                     }
+                }
+                else -> {
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(
+                                start = 20.dp,
+                                end = 20.dp,
+                                top = 20.dp,
+                                bottom = 100.dp
+                            ),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            items(viewModel.subtasks.size) { index ->
+                                SubtaskCard(
+                                    subtask = viewModel.subtasks[index],
+                                    index = index,
+                                    colorPair = subtaskColors[index % subtaskColors.size],
+                                    onEdit = { onEdit(index) },
+                                    onDelete = {
+                                        val subtaskId = (viewModel.subtasks.getOrNull(index)?.get("id") as? Number)?.toLong()
+                                        if (subtaskId != null) {
+                                            coroutineScope.launch {
+                                                try {
+                                                    withContext(Dispatchers.IO) {
+                                                        ApiClient.recordingApi.deleteSubtask(subtaskId)
+                                                    }
+                                                } catch (e: Exception) {
+                                                    // 오류 무시
+                                                }
+                                            }
+                                        }
+                                        viewModel.deleteSubtask(index)
+                                    }
+                                )
+                            }
+                        }
 
-                    // 하단 고정 버튼
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .align(Alignment.BottomCenter),
-                        color = Color.White,
-                        shadowElevation = 8.dp
-                    ) {
-                        Button(
+                        // 하단 고정 버튼
+                        Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(20.dp)
-                                .height(56.dp),
-                            onClick = {
-                                // TODO: Bulk update 구현 시 활성화
-                                // 현재는 개별 수정을 사용
-                            },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color.Transparent
-                            ),
-                            contentPadding = PaddingValues(0.dp),
-                            shape = RoundedCornerShape(12.dp)
+                                .align(Alignment.BottomCenter),
+                            color = Color.White,
+                            shadowElevation = 8.dp
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .background(
-                                        brush = Brush.horizontalGradient(
-                                            colors = listOf(
-                                                Color(0xFF2196F3),
-                                                Color(0xFF3F51B5)
+                            Column(
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                // 저장 결과 메시지
+                                if (saveMessage != null) {
+                                    val isSuccess = saveMessage?.contains("성공") == true
+                                    Surface(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 20.dp, vertical = 8.dp),
+                                        color = if (isSuccess) Color(0xFFD4EDDA) else Color(0xFFF8D7DA),
+                                        shape = RoundedCornerShape(8.dp)
+                                    ) {
+                                        Text(
+                                            text = saveMessage ?: "",
+                                            modifier = Modifier.padding(12.dp),
+                                            style = MaterialTheme.typography.bodySmall.copy(
+                                                color = if (isSuccess) Color(0xFF155724) else Color(0xFF721C24)
                                             )
                                         )
-                                    ),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Row(
-                                    horizontalArrangement = Arrangement.Center,
-                                    verticalAlignment = Alignment.CenterVertically
+                                    }
+                                }
+
+                                Button(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(20.dp)
+                                        .height(56.dp),
+                                    onClick = {
+                                        val currentTaskId = taskId
+                                        if (currentTaskId == null) {
+                                            saveMessage = "과제 ID가 없습니다."
+                                            return@Button
+                                        }
+
+                                        coroutineScope.launch {
+                                            isSaving = true
+                                            saveMessage = null
+                                            try {
+                                                // ViewModel의 subtasks를 BulkUpdateSubtasksRequest로 변환
+                                                val updateItems = viewModel.subtasks.map { subtask ->
+                                                    SubtaskUpdateItem(
+                                                        title = subtask["title"]?.toString() ?: "",
+                                                        description = subtask["description"]?.toString() ?: "",
+                                                        time = (subtask["time"] as? Number)?.toLong(),
+                                                        text = subtask["text"]?.toString(),
+                                                        contentDescription = subtask["content_description"]?.toString(),
+                                                        viewId = subtask["view_id"]?.toString(),
+                                                        bounds = subtask["bounds"]?.toString(),
+                                                        targetPackage = subtask["target_package"]?.toString(),
+                                                        targetClass = subtask["target_class"]?.toString(),
+                                                        targetAction = subtask["target_action"]?.toString(),
+                                                        uiHint = subtask["ui_hint"]?.toString(),
+                                                        guideText = subtask["guide_text"]?.toString(),
+                                                        voiceGuideText = subtask["voice_guide_text"]?.toString()
+                                                    )
+                                                }
+
+                                                val request = BulkUpdateSubtasksRequest(subtasks = updateItems)
+
+                                                val response = withContext(Dispatchers.IO) {
+                                                    ApiClient.recordingApi.bulkUpdateSubtasks(currentTaskId, request)
+                                                }
+
+                                                if (response.isSuccessful) {
+                                                    val result = response.body()
+                                                    val count = result?.createdCount ?: viewModel.subtasks.size
+                                                    saveMessage = "✓ 저장 성공! ${count}개 단계가 업데이트되었습니다."
+                                                } else {
+                                                    saveMessage = "저장 실패: ${response.code()} ${response.message()}"
+                                                }
+                                            } catch (e: Exception) {
+                                                saveMessage = "저장 오류: ${e.message}"
+                                            } finally {
+                                                isSaving = false
+                                            }
+                                        }
+                                    },
+                                    enabled = !isSaving && taskId != null,
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                                    contentPadding = PaddingValues(0.dp),
+                                    shape = RoundedCornerShape(12.dp)
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.CheckCircle,
-                                        contentDescription = null,
-                                        tint = Color.White,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = "전체 저장",
-                                        color = Color.White,
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(
+                                                brush = Brush.horizontalGradient(
+                                                    colors = if (isSaving || taskId == null)
+                                                        listOf(Color(0xFF9CA3AF), Color(0xFF6B7280))
+                                                    else
+                                                        listOf(Color(0xFF2196F3), Color(0xFF3F51B5))
+                                                )
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Row(
+                                            horizontalArrangement = Arrangement.Center,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            if (isSaving) {
+                                                CircularProgressIndicator(
+                                                    modifier = Modifier.size(20.dp),
+                                                    color = Color.White,
+                                                    strokeWidth = 2.dp
+                                                )
+                                            } else {
+                                                Icon(
+                                                    imageVector = Icons.Default.CheckCircle,
+                                                    contentDescription = null,
+                                                    tint = Color.White,
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = if (isSaving) "저장 중..." else "전체 저장",
+                                                color = Color.White,
+                                                fontSize = 16.sp,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -299,9 +383,12 @@ fun StepListScreen(
     }
 }
 
+/**
+ * 단계 카드 컴포넌트
+ */
 @Composable
-fun StepCard(
-    step: Map<String, Any?>,
+fun SubtaskCard(
+    subtask: Map<String, Any?>,
     index: Int,
     colorPair: Pair<Color, Color>,
     onEdit: () -> Unit,
@@ -312,12 +399,8 @@ fun StepCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = Color.White
-        ),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = 2.dp
-        )
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             // 카드 헤더
@@ -328,7 +411,7 @@ fun StepCard(
                     .padding(20.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 스텝 번호 배지
+                // 단계 번호 배지
                 Box(
                     modifier = Modifier
                         .size(40.dp)
@@ -341,7 +424,7 @@ fun StepCard(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "${step["step"]}",
+                        text = "${subtask["step"]}",
                         color = Color.White,
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp
@@ -351,7 +434,7 @@ fun StepCard(
                 Spacer(modifier = Modifier.width(12.dp))
 
                 Text(
-                    text = step["title"]?.toString() ?: "",
+                    text = subtask["title"]?.toString() ?: "",
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.SemiBold,
                         color = Color(0xFF1F2937)
@@ -378,7 +461,7 @@ fun StepCard(
                         .fillMaxWidth()
                         .padding(start = 20.dp, end = 20.dp, bottom = 20.dp)
                 ) {
-                    Divider(color = Color(0xFFF3F4F6), thickness = 1.dp)
+                    HorizontalDivider(color = Color(0xFFF3F4F6), thickness = 1.dp)
                     Spacer(modifier = Modifier.height(16.dp))
 
                     // 설명
@@ -395,7 +478,7 @@ fun StepCard(
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = step["description"]?.toString() ?: "",
+                                text = subtask["description"]?.toString() ?: "",
                                 style = MaterialTheme.typography.bodyMedium.copy(
                                     color = Color(0xFF374151)
                                 )
@@ -404,7 +487,7 @@ fun StepCard(
                     }
 
                     // 텍스트 (있을 경우)
-                    step["text"]?.toString()?.let { text ->
+                    subtask["text"]?.toString()?.let { text ->
                         if (text.isNotEmpty()) {
                             Spacer(modifier = Modifier.height(12.dp))
                             Surface(
@@ -444,9 +527,7 @@ fun StepCard(
                                 .weight(1f)
                                 .height(48.dp),
                             onClick = onEdit,
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color.Transparent
-                            ),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
                             contentPadding = PaddingValues(0.dp),
                             shape = RoundedCornerShape(12.dp)
                         ) {
@@ -455,10 +536,7 @@ fun StepCard(
                                     .fillMaxSize()
                                     .background(
                                         brush = Brush.horizontalGradient(
-                                            colors = listOf(
-                                                Color(0xFF2196F3),
-                                                Color(0xFF3F51B5)
-                                            )
+                                            colors = listOf(Color(0xFF2196F3), Color(0xFF3F51B5))
                                         )
                                     ),
                                 contentAlignment = Alignment.Center

@@ -61,35 +61,48 @@ def analyze_recording_task(self, recording_session_id: int):
 
 
 @shared_task
+def convert_recording_to_task_task(
+    recording_session_id: int,
+    title: str,
+    description: str = '',
+    lecture_id: int = None
+):
+    """
+    비동기 과제 변환 태스크
+
+    Args:
+        recording_session_id: RecordingSession ID
+        title: 과제 제목
+        description: 과제 설명
+        lecture_id: 연결할 강의 ID (선택)
+
+    Returns:
+        Dict with conversion result
+    """
+    from apps.sessions.services import TaskConversionService
+
+    logger.info(f"Starting task conversion for recording {recording_session_id}")
+
+    service = TaskConversionService()
+    result = service.convert_to_task(recording_session_id, title, description, lecture_id)
+
+    if result.get('success'):
+        logger.info(
+            f"Task conversion completed: Task {result.get('task_id')}, "
+            f"{result.get('subtask_count')} subtasks"
+        )
+    else:
+        logger.error(f"Task conversion failed: {result.get('error')}")
+
+    return result
+
+
+# 기존 호환성 유지 (deprecated)
+@shared_task
 def convert_recording_to_lecture_task(
     recording_session_id: int,
     title: str,
     description: str = ''
 ):
-    """
-    비동기 강의 변환 태스크 (필요시 사용)
-
-    Args:
-        recording_session_id: RecordingSession ID
-        title: 강의 제목
-        description: 강의 설명
-
-    Returns:
-        Dict with conversion result
-    """
-    from apps.sessions.services import LectureConversionService
-
-    logger.info(f"Starting lecture conversion for recording {recording_session_id}")
-
-    service = LectureConversionService()
-    result = service.convert_to_lecture(recording_session_id, title, description)
-
-    if result.get('success'):
-        logger.info(
-            f"Lecture conversion completed: Lecture {result.get('lecture_id')}, "
-            f"{result.get('subtask_count')} subtasks"
-        )
-    else:
-        logger.error(f"Lecture conversion failed: {result.get('error')}")
-
-    return result
+    """[Deprecated] convert_recording_to_task_task 사용 권장"""
+    return convert_recording_to_task_task(recording_session_id, title, description)

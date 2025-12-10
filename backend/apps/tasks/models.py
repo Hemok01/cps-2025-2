@@ -6,16 +6,18 @@ from apps.lectures.models import Lecture
 
 
 class Task(models.Model):
-    """과제 모델 (강의 내의 큰 단위 작업)"""
+    """과제 모델 (강의 내의 큰 단위 작업, 또는 녹화에서 독립 생성)"""
     lecture = models.ForeignKey(
         Lecture,
         on_delete=models.CASCADE,
         related_name='tasks',
-        verbose_name='강의'
+        verbose_name='강의',
+        null=True,
+        blank=True  # 녹화에서 직접 생성 시 lecture 없이 생성 가능
     )
     title = models.CharField(max_length=255, verbose_name='제목')
     description = models.TextField(blank=True, verbose_name='설명')
-    order_index = models.IntegerField(verbose_name='순서')
+    order_index = models.IntegerField(verbose_name='순서', default=0)
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='생성일시')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='수정일시')
 
@@ -23,14 +25,15 @@ class Task(models.Model):
         db_table = 'tasks'
         verbose_name = '과제'
         verbose_name_plural = '과제'
-        unique_together = ['lecture', 'order_index']
         indexes = [
             models.Index(fields=['lecture']),
         ]
         ordering = ['order_index']
 
     def __str__(self):
-        return f"{self.lecture.title} - {self.title}"
+        if self.lecture:
+            return f"{self.lecture.title} - {self.title}"
+        return self.title
 
 
 class Subtask(models.Model):

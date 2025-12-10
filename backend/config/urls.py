@@ -35,6 +35,7 @@ urlpatterns = [
     path('api/auth/', include('apps.accounts.urls')),
     path('api/lectures/', include('apps.lectures.urls')),
     path('api/sessions/', include('apps.sessions.urls')),
+    path('api/recordings/', include('apps.sessions.recording_urls')),  # 녹화 API 분리
     path('api/tasks/', include('apps.tasks.urls')),
     path('api/progress/', include('apps.progress.urls')),
     path('api/logs/', include('apps.logs.urls')),

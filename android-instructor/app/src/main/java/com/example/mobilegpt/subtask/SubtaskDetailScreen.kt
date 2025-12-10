@@ -1,4 +1,4 @@
-package com.example.mobilegpt.stepdetail
+package com.example.mobilegpt.subtask
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -21,24 +21,27 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mobilegpt.network.*
-import com.example.mobilegpt.viewmodel.StepViewModel
+import com.example.mobilegpt.viewmodel.SubtaskViewModel
 import com.google.gson.Gson
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import retrofit2.*
 
+/**
+ * 단계 상세/수정 화면
+ */
 @Composable
-fun StepDetailScreen(
-    sessionId: String,
+fun SubtaskDetailScreen(
+    recordingId: String,
     index: Int,
-    viewModel: StepViewModel,
+    viewModel: SubtaskViewModel,
     onBack: () -> Unit
 ) {
-    val step = viewModel.steps[index]
+    val subtask = viewModel.subtasks[index]
 
-    var title by remember { mutableStateOf(step["title"]?.toString() ?: "") }
-    var description by remember { mutableStateOf(step["description"]?.toString() ?: "") }
-    var text by remember { mutableStateOf(step["text"]?.toString() ?: "") }
+    var title by remember { mutableStateOf(subtask["title"]?.toString() ?: "") }
+    var description by remember { mutableStateOf(subtask["description"]?.toString() ?: "") }
+    var text by remember { mutableStateOf(subtask["text"]?.toString() ?: "") }
 
     Box(
         modifier = Modifier
@@ -46,7 +49,7 @@ fun StepDetailScreen(
             .background(Color(0xFFF9FAFB))
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // 헤더 (스티키)
+            // 헤더
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 color = Color.White,
@@ -59,7 +62,7 @@ fun StepDetailScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Step 수정",
+                        text = "단계 수정",
                         style = MaterialTheme.typography.headlineMedium.copy(
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF1F2937)
@@ -77,7 +80,7 @@ fun StepDetailScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 // 제목
-                InputField(
+                SubtaskInputField(
                     label = "제목",
                     icon = Icons.Default.Info,
                     value = title,
@@ -87,7 +90,7 @@ fun StepDetailScreen(
                 )
 
                 // 설명
-                InputField(
+                SubtaskInputField(
                     label = "설명",
                     icon = Icons.Default.Create,
                     value = description,
@@ -97,7 +100,7 @@ fun StepDetailScreen(
                 )
 
                 // 텍스트
-                InputField(
+                SubtaskInputField(
                     label = "텍스트",
                     icon = Icons.Default.Edit,
                     value = text,
@@ -143,13 +146,13 @@ fun StepDetailScreen(
                         .padding(20.dp)
                         .height(56.dp),
                     onClick = {
-                        viewModel.updateStep(index, title, description, text)
+                        viewModel.updateSubtask(index, title, description, text)
 
-                        // 서버 update_step 호출
+                        // 서버 update_step 호출 (레거시 API)
                         val gson = Gson()
                         val json = gson.toJson(
                             mapOf(
-                                "session_id" to sessionId,
+                                "session_id" to recordingId,
                                 "step_index" to index,
                                 "title" to title,
                                 "description" to description,
@@ -166,9 +169,7 @@ fun StepDetailScreen(
 
                         onBack()
                     },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color.Transparent
-                    ),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
                     contentPadding = PaddingValues(0.dp),
                     shape = RoundedCornerShape(12.dp)
                 ) {
@@ -177,10 +178,7 @@ fun StepDetailScreen(
                             .fillMaxSize()
                             .background(
                                 brush = Brush.horizontalGradient(
-                                    colors = listOf(
-                                        Color(0xFF2196F3),
-                                        Color(0xFF3F51B5)
-                                    )
+                                    colors = listOf(Color(0xFF2196F3), Color(0xFF3F51B5))
                                 )
                             ),
                         contentAlignment = Alignment.Center
@@ -211,7 +209,7 @@ fun StepDetailScreen(
 }
 
 @Composable
-fun InputField(
+fun SubtaskInputField(
     label: String,
     icon: ImageVector,
     value: String,

@@ -1,5 +1,10 @@
 """
-Lecture Conversion Service - 분석된 Step을 Lecture/Task/Subtask로 변환
+Task Conversion Service - 분석된 Step을 Task/Subtask로 변환
+
+플로우:
+  Recording → 분석(GPT) → Task + Subtasks 생성
+                              ↓
+                         Lecture에 연결 (선택적)
 """
 import logging
 from typing import Dict, Optional
@@ -30,31 +35,36 @@ EVENT_TYPE_MAPPING = {
 }
 
 
-class LectureConversionService:
+class TaskConversionService:
     """
-    분석된 녹화 결과를 Lecture/Task/Subtask 구조로 변환하는 서비스
+    분석된 녹화 결과를 Task/Subtask 구조로 변환하는 서비스
+
+    플로우:
+        Recording → Task + Subtasks (Lecture 없이 독립적으로 생성)
     """
 
-    def convert_to_lecture(
+    def convert_to_task(
         self,
         recording_session_id: int,
         title: str,
-        description: str = ''
+        description: str = '',
+        lecture_id: int = None
     ) -> Dict:
         """
-        녹화 분석 결과를 강의로 변환
+        녹화 분석 결과를 과제(Task)로 변환
 
         Args:
             recording_session_id: RecordingSession ID
-            title: 강의 제목
-            description: 강의 설명 (선택)
+            title: 과제 제목
+            description: 과제 설명 (선택)
+            lecture_id: 연결할 강의 ID (선택)
 
         Returns:
             Dict containing:
                 - success: bool
-                - lecture_id: Created Lecture ID (if success)
                 - task_id: Created Task ID (if success)
                 - subtask_count: Number of Subtasks created (if success)
+                - lecture_id: Connected Lecture ID (if provided)
                 - error: Error message (if failed)
         """
         from apps.sessions.models import RecordingSession
@@ -77,21 +87,21 @@ class LectureConversionService:
             if not isinstance(steps, list) or len(steps) == 0:
                 raise ValueError("유효한 분석 결과가 없습니다.")
 
-            # 3. 트랜잭션으로 Lecture, Task, Subtask 생성
-            with transaction.atomic():
-                # Lecture 생성
-                lecture = Lecture.objects.create(
-                    instructor=recording.instructor,
-                    title=title,
-                    description=description or recording.description,
-                    is_active=True
-                )
+            # 3. 강의 조회 (선택적)
+            lecture = None
+            if lecture_id:
+                try:
+                    lecture = Lecture.objects.get(id=lecture_id)
+                except Lecture.DoesNotExist:
+                    raise ValueError(f"강의를 찾을 수 없습니다: {lecture_id}")
 
-                # 단일 Task 생성 (계획대로)
+            # 4. 트랜잭션으로 Task, Subtask 생성
+            with transaction.atomic():
+                # Task 생성 (lecture 없이도 가능)
                 task = Task.objects.create(
-                    lecture=lecture,
+                    lecture=lecture,  # None이면 독립 Task
                     title=title,
-                    description=f"{recording.title} 녹화에서 생성됨",
+                    description=description or f"{recording.title} 녹화에서 생성됨",
                     order_index=0
                 )
 
@@ -101,21 +111,22 @@ class LectureConversionService:
                     subtask = self._create_subtask_from_step(task, step, idx)
                     subtasks_created.append(subtask)
 
-                # RecordingSession에 생성된 강의 연결
-                recording.lecture = lecture
-                recording.save(update_fields=['lecture', 'updated_at'])
+                # RecordingSession에 생성된 Task 연결
+                recording.task = task
+                recording.lecture = lecture  # 선택적
+                recording.save(update_fields=['task', 'lecture', 'updated_at'])
 
             logger.info(
-                f"Recording {recording_session_id} converted to Lecture {lecture.id}: "
-                f"1 Task, {len(subtasks_created)} Subtasks"
+                f"Recording {recording_session_id} converted to Task {task.id}: "
+                f"{len(subtasks_created)} Subtasks"
             )
 
             return {
                 'success': True,
-                'lecture_id': lecture.id,
                 'task_id': task.id,
+                'task_title': task.title,
                 'subtask_count': len(subtasks_created),
-                'lecture_title': lecture.title
+                'lecture_id': lecture.id if lecture else None
             }
 
         except RecordingSession.DoesNotExist:
@@ -127,6 +138,18 @@ class LectureConversionService:
             error_msg = str(e)
             logger.error(f"Error converting recording {recording_session_id}: {error_msg}")
             return {'success': False, 'error': error_msg}
+
+    # 기존 메서드 호환성 유지 (deprecated)
+    def convert_to_lecture(
+        self,
+        recording_session_id: int,
+        title: str,
+        description: str = ''
+    ) -> Dict:
+        """
+        [Deprecated] 기존 호환성을 위해 유지. convert_to_task 사용 권장.
+        """
+        return self.convert_to_task(recording_session_id, title, description)
 
     def _create_subtask_from_step(self, task, step: Dict, index: int):
         """

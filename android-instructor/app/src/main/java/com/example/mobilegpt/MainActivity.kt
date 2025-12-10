@@ -10,11 +10,11 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.mobilegpt.network.ApiClient
 import com.example.mobilegpt.recording.RecordingScreen
-import com.example.mobilegpt.session.SessionListScreen
-import com.example.mobilegpt.session.StepListScreen
-import com.example.mobilegpt.stepdetail.StepDetailScreen
+import com.example.mobilegpt.recording.RecordingListScreen
+import com.example.mobilegpt.subtask.SubtaskListScreen
+import com.example.mobilegpt.subtask.SubtaskDetailScreen
 import com.example.mobilegpt.ui.auth.LoginScreen
-import com.example.mobilegpt.viewmodel.StepViewModel
+import com.example.mobilegpt.viewmodel.SubtaskViewModel
 import com.example.mobilegpt.ui.theme.MobilegptTheme
 
 class MainActivity : ComponentActivity() {
@@ -35,7 +35,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             MobilegptTheme {
                 val nav = rememberNavController()
-                val vm: StepViewModel = viewModel()
+                val vm: SubtaskViewModel = viewModel()
 
                 NavHost(navController = nav, startDestination = startDestination) {
 
@@ -53,7 +53,7 @@ class MainActivity : ComponentActivity() {
                     // 메인 녹화 화면
                     composable("recording") {
                         RecordingScreen(
-                            onGotoSessionList = { nav.navigate("sessionList") },
+                            onGotoRecordingList = { nav.navigate("recordingList") },
                             onLogout = {
                                 ApiClient.getTokenManager().clearTokens()
                                 nav.navigate("login") {
@@ -63,35 +63,37 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
-                    // 녹화/세션 목록
-                    composable("sessionList") {
-                        SessionListScreen { sessionId ->
-                            nav.navigate("stepList/$sessionId")
-                        }
-                    }
-
-                    // Step 목록
-                    composable("stepList/{sessionId}") { backStack ->
-                        val sessionId = backStack.arguments?.getString("sessionId")
-                            ?: return@composable
-                        StepListScreen(
-                            sessionId = sessionId,
-                            viewModel = vm,
-                            onEdit = { index ->
-                                nav.navigate("stepDetail/$sessionId/$index")
+                    // 녹화 목록
+                    composable("recordingList") {
+                        RecordingListScreen(
+                            onRecordingSelected = { recordingId ->
+                                nav.navigate("subtaskList/$recordingId")
                             }
                         )
                     }
 
-                    // Step 상세
-                    composable("stepDetail/{sessionId}/{index}") { backStack ->
-                        val sessionId = backStack.arguments?.getString("sessionId")
+                    // 단계 목록
+                    composable("subtaskList/{recordingId}") { backStack ->
+                        val recordingId = backStack.arguments?.getString("recordingId")
+                            ?: return@composable
+                        SubtaskListScreen(
+                            recordingId = recordingId,
+                            viewModel = vm,
+                            onEdit = { index ->
+                                nav.navigate("subtaskDetail/$recordingId/$index")
+                            }
+                        )
+                    }
+
+                    // 단계 상세
+                    composable("subtaskDetail/{recordingId}/{index}") { backStack ->
+                        val recordingId = backStack.arguments?.getString("recordingId")
                             ?: return@composable
                         val index = backStack.arguments?.getString("index")?.toIntOrNull()
                             ?: return@composable
 
-                        StepDetailScreen(
-                            sessionId = sessionId,
+                        SubtaskDetailScreen(
+                            recordingId = recordingId,
                             index = index,
                             viewModel = vm,
                             onBack = { nav.popBackStack() }
