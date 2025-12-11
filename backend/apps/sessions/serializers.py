@@ -83,7 +83,7 @@ class SessionParticipantSerializer(serializers.ModelSerializer):
             'id', 'session', 'user', 'device_id', 'display_name',
             'name', 'is_active', 'status', 'current_subtask',
             'joined_at', 'last_active_at', 'completed_at',
-            'has_pending_help_request'
+            'has_pending_help_request', 'completed_subtasks'
         ]
         read_only_fields = ['id', 'joined_at', 'last_active_at']
 

@@ -285,7 +285,8 @@ export function LectureFormPage() {
         });
         toast.success('강의가 수정되었습니다');
       } else {
-        await lectureService.createLecture(lectureData);
+        // Task가 선택된 경우 함께 연결
+        await lectureService.createLectureWithTasks(lectureData, selectedTaskIds);
         toast.success('강의가 추가되었습니다');
       }
       navigate('/lectures');

@@ -20,6 +20,7 @@ import com.mobilegpt.student.presentation.MainActivity
 import com.mobilegpt.student.presentation.screen.*
 import com.mobilegpt.student.presentation.viewmodel.SessionViewModel
 import com.mobilegpt.student.service.ScreenCaptureService
+import androidx.lifecycle.repeatOnLifecycle
 
 /**
  * Navigation Routes
@@ -155,10 +156,21 @@ fun NavGraph(
             val sessionStatus by sessionViewModel.sessionStatus.collectAsState()
             val currentStep by sessionViewModel.currentStep.collectAsState()
             val totalSteps by sessionViewModel.totalSteps.collectAsState()
+            val currentStepTitle by sessionViewModel.currentStepTitle.collectAsState()
+            val currentSubtaskId by sessionViewModel.currentSubtaskId.collectAsState()
             val isMediaProjectionPermissionGranted by sessionViewModel.isMediaProjectionPermissionGranted.collectAsState()
             val isScreenCaptureActive by sessionViewModel.isScreenCaptureActive.collectAsState()
 
             val sessionData = (joinState as? JoinSessionUiState.Success)?.response?.session
+
+            // ★ 앱이 포그라운드로 돌아올 때 진행도 새로고침
+            val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+            LaunchedEffect(lifecycleOwner) {
+                lifecycleOwner.lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.RESUMED) {
+                    android.util.Log.d("NavGraph", "SESSION_ACTIVE: App resumed - refreshing progress")
+                    sessionViewModel.refreshProgressFromPreferences()
+                }
+            }
 
             // 세션 활성 화면 진입 시 MediaProjection 권한 요청
             LaunchedEffect(Unit) {
@@ -183,10 +195,24 @@ fun NavGraph(
             }
 
             if (sessionData != null) {
-                android.util.Log.d("NavGraph", "SessionActiveScreen: sessionData=$sessionData, sessionStatus=$sessionStatus")
+                // ★ 현재 단계 정보를 ViewModel 상태에서 동적으로 생성
+                // sessionData.currentSubtaskDetail은 초기 값이라 변하지 않음
+                val currentStepDetail = remember(currentSubtaskId, currentStepTitle) {
+                    if (currentSubtaskId != null) {
+                        com.mobilegpt.student.domain.model.SubtaskDetail(
+                            id = currentSubtaskId!!,
+                            title = currentStepTitle,
+                            orderIndex = currentStep - 1  // 0-based index
+                        )
+                    } else {
+                        sessionData.currentSubtaskDetail
+                    }
+                }
+
+                android.util.Log.d("NavGraph", "SessionActiveScreen: currentStep=$currentStep, title=$currentStepTitle, id=$currentSubtaskId")
                 SessionActiveScreen(
                     sessionData = sessionData,
-                    currentStep = sessionData.currentSubtaskDetail,
+                    currentStep = currentStepDetail,
                     currentStepIndex = currentStep,
                     totalSteps = totalSteps,
                     connectionStatus = connectionState.toConnectionStatus(),

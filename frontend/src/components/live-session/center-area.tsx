@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { StudentScreen } from '../../lib/live-session-types';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
-import { Badge } from '../ui/badge';
 import { ChevronLeft, ChevronRight, RefreshCw, Grid2X2, ZoomIn, ZoomOut, Download, HelpCircle, ChevronDown, ChevronUp, Hand } from 'lucide-react';
 import {
   DropdownMenu,
@@ -262,9 +261,6 @@ function StudentScreenRenderer({ screen, zoomLevel, onRefresh, viewMode = VIEW_M
   if (screen.imageUrl) {
     return (
       <div className="relative flex flex-col items-center h-full">
-        <div className="mb-2 flex-shrink-0">
-          <Badge variant="outline" className="mb-1">{screen.studentName}</Badge>
-        </div>
         <div
           className="flex-1 flex items-center justify-center overflow-hidden"
           style={{

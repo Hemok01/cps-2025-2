@@ -146,23 +146,26 @@ class AttachTasksToLectureView(APIView):
                 max_order=db_models.Max('order_index')
             )['max_order'] or -1
 
-            updated_tasks = []
+            copied_tasks = []
             for idx, task_id in enumerate(task_ids):
-                task = Task.objects.filter(
+                # 원본 Task 조회 (템플릿만 - lecture가 NULL인 것)
+                source_task = Task.objects.filter(
                     id=task_id,
                     lecture__isnull=True
-                ).first()
+                ).prefetch_related('subtasks').first()
 
-                if task:
-                    task.lecture = lecture
-                    task.order_index = max_order + idx + 1
-                    task.save()
-                    updated_tasks.append(task.id)
+                if source_task:
+                    # 복사본 생성 (원본은 유지)
+                    task_copy = source_task.copy_to_lecture(
+                        lecture=lecture,
+                        order_index=max_order + idx + 1
+                    )
+                    copied_tasks.append(task_copy.id)
 
         return Response({
-            'message': f'{len(updated_tasks)}개의 과제가 연결되었습니다',
+            'message': f'{len(copied_tasks)}개의 과제가 복사되어 연결되었습니다',
             'lecture_id': lecture.id,
-            'attached_task_ids': updated_tasks
+            'attached_task_ids': copied_tasks  # 하위 호환성 유지
         })
 
 

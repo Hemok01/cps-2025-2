@@ -12,7 +12,7 @@ from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 
 from apps.lectures.models import Lecture
-from apps.tasks.models import Subtask
+from apps.tasks.models import Task, Subtask
 from .models import LectureSession, SessionParticipant, SessionStepControl
 from .serializers import (
     LectureSessionSerializer,
@@ -355,7 +355,12 @@ class SessionStartView(APIView):
                 'order_index': first_subtask.order_index,
                 'target_action': first_subtask.target_action,
                 'guide_text': first_subtask.guide_text,
-                'voice_guide_text': first_subtask.voice_guide_text
+                'voice_guide_text': first_subtask.voice_guide_text,
+                # UI 매칭용 필드 추가
+                'view_id': first_subtask.view_id or '',
+                'text': first_subtask.text or '',
+                'content_description': first_subtask.content_description or '',
+                'target_package': first_subtask.target_package or '',
             }
         )
 
@@ -431,7 +436,12 @@ class SessionNextStepView(APIView):
                 'order_index': next_subtask.order_index,
                 'target_action': next_subtask.target_action,
                 'guide_text': next_subtask.guide_text,
-                'voice_guide_text': next_subtask.voice_guide_text
+                'voice_guide_text': next_subtask.voice_guide_text,
+                # UI 매칭용 필드 추가
+                'view_id': next_subtask.view_id or '',
+                'text': next_subtask.text or '',
+                'content_description': next_subtask.content_description or '',
+                'target_package': next_subtask.target_package or '',
             }
         )
 
@@ -743,14 +753,22 @@ class AnonymousSessionJoinView(APIView):
                 participant.current_subtask = session.current_subtask
             participant.save()
 
-        # 현재 단계 정보
+        # 현재 단계 정보 (UI 매칭 필드 포함)
         current_subtask_data = None
         if session.current_subtask:
+            subtask = session.current_subtask
             current_subtask_data = {
-                'id': session.current_subtask.id,
-                'title': session.current_subtask.title,
-                'description': session.current_subtask.description,
-                'order_index': session.current_subtask.order_index
+                'id': subtask.id,
+                'title': subtask.title,
+                'description': subtask.description,
+                'order_index': subtask.order_index,
+                'target_action': subtask.target_action,
+                'guide_text': subtask.guide_text,
+                # UI 매칭용 필드 (android-student 앱에서 진행도 추적에 사용)
+                'view_id': subtask.view_id or '',
+                'text': subtask.text or '',
+                'content_description': subtask.content_description or '',
+                'target_package': subtask.target_package or '',
             }
 
         # 전체 서브태스크 목록 (진행도 표시용)
@@ -1003,11 +1021,55 @@ class ReportCompletionView(APIView):
                 participant.save()
                 logger.info(f"Step completion removed: device={device_id}, subtask={subtask_id}")
 
+        # 다음 단계 찾기 (학생 앱에서 자동 진행용)
+        next_subtask_data = None
+        if is_completed and session.lecture:
+            # 현재 단계의 task와 order_index 확인
+            current_task = subtask.task
+            current_order = subtask.order_index
+
+            # 같은 Task 내에서 다음 단계 찾기
+            next_subtask = Subtask.objects.filter(
+                task=current_task,
+                order_index__gt=current_order
+            ).order_by('order_index').first()
+
+            # 같은 Task에 없으면, 다음 Task의 첫 번째 단계 찾기
+            if not next_subtask:
+                from apps.tasks.models import Task
+                next_task = Task.objects.filter(
+                    lecture=session.lecture,
+                    order_index__gt=current_task.order_index
+                ).order_by('order_index').first()
+
+                if next_task:
+                    next_subtask = next_task.subtasks.order_by('order_index').first()
+
+            if next_subtask:
+                next_subtask_data = {
+                    'id': next_subtask.id,
+                    'title': next_subtask.title,
+                    'description': next_subtask.description,
+                    'order_index': next_subtask.order_index,
+                    'target_action': next_subtask.target_action,
+                    'guide_text': next_subtask.guide_text,
+                    # UI 매칭용 필드
+                    'view_id': next_subtask.view_id or '',
+                    'text': next_subtask.text or '',
+                    'content_description': next_subtask.content_description or '',
+                    'target_package': next_subtask.target_package or '',
+                }
+                # 참가자의 현재 단계 업데이트
+                participant.current_subtask = next_subtask
+                participant.save()
+                logger.info(f"Auto-advanced to next step: device={device_id}, next_subtask={next_subtask.id}")
+
         return Response({
             'success': True,
             'message': '단계 완료 상태가 업데이트되었습니다.',
             'completed_subtasks': participant.completed_subtasks,
-            'last_completed_at': participant.last_completed_at.isoformat() if participant.last_completed_at else None
+            'last_completed_at': participant.last_completed_at.isoformat() if participant.last_completed_at else None,
+            'next_subtask': next_subtask_data  # 다음 단계 정보 (없으면 null = 모든 단계 완료)
         })
 
 
@@ -1187,4 +1249,68 @@ class SessionSummaryView(APIView):
 
             # 참가자 상세
             'participants': participant_progress,
+        })
+
+
+class SessionSubtasksView(APIView):
+    """
+    세션의 모든 단계(Subtask) 목록 조회
+    GET /api/sessions/{session_id}/subtasks/
+
+    Returns:
+        - session_id: 세션 ID
+        - current_subtask_id: 현재 진행 중인 단계 ID
+        - current_subtask_index: 현재 단계 인덱스 (0-based)
+        - total_subtasks: 전체 단계 수
+        - subtasks: 단계 목록
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, session_id):
+        session = get_object_or_404(LectureSession, pk=session_id)
+
+        subtasks = []
+        current_subtask_index = 0
+
+        if session.lecture:
+            # 강의에 연결된 모든 Task와 Subtask 조회
+            tasks = Task.objects.filter(lecture=session.lecture).prefetch_related('subtasks').order_by('id')
+
+            global_index = 0
+            for task in tasks:
+                for subtask in task.subtasks.all().order_by('order_index'):
+                    subtask_data = {
+                        'id': subtask.id,
+                        'title': subtask.title,
+                        'description': subtask.description,
+                        'orderIndex': global_index,  # camelCase for frontend
+                        'order_index': global_index,  # snake_case for consistency
+                        'targetAction': subtask.target_action,
+                        'guideText': subtask.guide_text,
+                        'taskId': task.id,
+                        'taskTitle': task.title,
+                    }
+                    subtasks.append(subtask_data)
+
+                    # 현재 단계 인덱스 찾기
+                    if session.current_subtask and subtask.id == session.current_subtask.id:
+                        current_subtask_index = global_index
+
+                    global_index += 1
+
+        current_subtask_data = None
+        if session.current_subtask:
+            current_subtask_data = {
+                'id': session.current_subtask.id,
+                'title': session.current_subtask.title,
+                'orderIndex': current_subtask_index,
+            }
+
+        return Response({
+            'session_id': session_id,
+            'current_subtask': current_subtask_data,
+            'current_subtask_id': session.current_subtask.id if session.current_subtask else None,
+            'current_subtask_index': current_subtask_index,
+            'total_subtasks': len(subtasks),
+            'subtasks': subtasks,
         })

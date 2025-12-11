@@ -6,10 +6,9 @@ import { Session } from '../lib/types';
 import {
   LiveSessionData,
   StudentListItem,
-  ProgressData,
-  GroupProgress,
   LiveNotification,
-  StudentScreen
+  StudentScreen,
+  SubtaskInfo
 } from '../lib/live-session-types';
 import { TopControlBar } from '../components/live-session/top-control-bar';
 import { LeftPanel } from '../components/live-session/left-panel';
@@ -49,8 +48,6 @@ export function LiveSessionPage() {
 
   const [sessionData, setSessionData] = useState<LiveSessionData | null>(null);
   const [students, setStudents] = useState<StudentListItem[]>([]);
-  const [progressData, setProgressData] = useState<ProgressData[]>([]);
-  const [groupProgress, setGroupProgress] = useState<GroupProgress[]>([]);
   const [notifications, setNotifications] = useState<LiveNotification[]>([]);
   const [studentScreen, setStudentScreen] = useState<StudentScreen | null>(null);
   const [selectedStudentId, setSelectedStudentId] = useState<number | null>(null);
@@ -132,12 +129,25 @@ export function LiveSessionPage() {
     switch (message.type) {
       case 'step_changed':
         // Update session data with new step information
-        setSessionData(prev => prev ? {
-          ...prev,
-          currentStep: message.data.current_step,
-          totalSteps: message.data.total_steps,
-        } : null);
-        toast.info(`단계 변경: ${message.data.current_step}/${message.data.total_steps}`);
+        const stepData = message.data?.subtask || message.data;
+        setSessionData(prev => {
+          if (!prev) return null;
+
+          // 새 현재 단계 찾기
+          const newSubtaskId = stepData.id;
+          const newSubtaskIndex = prev.subtasks.findIndex(s => s.id === newSubtaskId);
+
+          return {
+            ...prev,
+            currentSubtask: {
+              id: newSubtaskId,
+              title: stepData.title,
+              orderIndex: newSubtaskIndex >= 0 ? newSubtaskIndex : prev.currentSubtaskIndex,
+            },
+            currentSubtaskIndex: newSubtaskIndex >= 0 ? newSubtaskIndex : prev.currentSubtaskIndex,
+          };
+        });
+        toast.info(`단계 변경: ${stepData.title || message.data.current_step}`);
         break;
 
       case 'session_status_changed':
@@ -171,37 +181,6 @@ export function LiveSessionPage() {
         toast.info(`${message.data.username}님이 퇴장했습니다`);
         // Reload student list
         loadStudents();
-        break;
-
-      case 'progress_updated':
-        // Update progress data for specific student
-        setProgressData(prev => {
-          const existing = prev.find(p => p.userId === message.data.user_id);
-          if (existing) {
-            return prev.map(p =>
-              p.userId === message.data.user_id
-                ? {
-                    ...p,
-                    currentSubtask: message.data.current_subtask,
-                    progressPercentage: message.data.progress_percentage,
-                    completedSubtasks: message.data.completed_subtasks,
-                  }
-                : p
-            );
-          } else {
-            // Add new progress entry
-            return [
-              ...prev,
-              {
-                userId: message.data.user_id,
-                username: message.data.username,
-                currentSubtask: message.data.current_subtask,
-                progressPercentage: message.data.progress_percentage,
-                completedSubtasks: message.data.completed_subtasks,
-              },
-            ];
-          }
-        });
         break;
 
       case 'help_requested':
@@ -366,21 +345,17 @@ export function LiveSessionPage() {
 
   const loadInitialData = async () => {
     if (!sessionId) return;
-    
+
     setLoading(true);
     try {
-      const [session, studentList, progress, groups, notifs] = await Promise.all([
+      const [session, studentList, notifs] = await Promise.all([
         liveSessionService.getSessionData(parseInt(sessionId)),
         liveSessionService.getStudentList(parseInt(sessionId)),
-        liveSessionService.getProgressData(parseInt(sessionId)),
-        liveSessionService.getGroupProgress(parseInt(sessionId)),
         liveSessionService.getNotifications(parseInt(sessionId)),
       ]);
 
       setSessionData(session);
       setStudents(studentList);
-      setProgressData(progress);
-      setGroupProgress(groups);
       setNotifications(notifs);
 
       // Auto-select first student
@@ -401,10 +376,14 @@ export function LiveSessionPage() {
     // 현재 화면 상태 저장 (API 호출 전)
     const currentScreen = studentScreen;
 
+    // students 배열에서 학생 이름 찾기
+    const student = students.find(s => s.id === studentId);
+    const studentName = student?.name || '';
+
     try {
       setStudentScreen(prev => prev ? { ...prev, isLoading: true } : {
         studentId,
-        studentName: '',
+        studentName,
         imageUrl: undefined,
         lastUpdated: new Date().toISOString(),
         isLoading: true,
@@ -441,7 +420,7 @@ export function LiveSessionPage() {
         error: '화면을 불러올 수 없습니다',
       } : {
         studentId,
-        studentName: '',
+        studentName,
         imageUrl: undefined,
         lastUpdated: new Date().toISOString(),
         isLoading: false,
@@ -531,14 +510,27 @@ export function LiveSessionPage() {
   };
 
   const handleNextStep = async () => {
-    if (!sessionId) return;
+    if (!sessionId || !sessionData) return;
+
+    // 다음 단계 계산
+    const nextIndex = sessionData.currentSubtaskIndex + 1;
+    if (nextIndex >= sessionData.subtasks.length) {
+      toast.info('마지막 단계입니다');
+      return;
+    }
+
+    const nextSubtask = sessionData.subtasks[nextIndex];
+    if (!nextSubtask) {
+      toast.error('다음 단계를 찾을 수 없습니다');
+      return;
+    }
 
     try {
-      await liveSessionService.nextStep(parseInt(sessionId));
+      await liveSessionService.nextStep(parseInt(sessionId), nextSubtask.id);
       // 세션 데이터 새로고침
       const updated = await liveSessionService.getSessionData(parseInt(sessionId));
       setSessionData(updated);
-      toast.success('다음 단계로 진행되었습니다');
+      toast.success(`${nextSubtask.title} 단계로 진행되었습니다`);
     } catch (error) {
       toast.error('다음 단계 진행에 실패했습니다');
     }
@@ -815,8 +807,8 @@ export function LiveSessionPage() {
         startedAt={sessionData.startedAt}
         lectures={sessionData.lectures}
         activeLectureId={sessionData.activeLectureId}
-        currentStep={3}
-        totalSteps={10}
+        currentStep={sessionData.currentSubtaskIndex + 1}
+        totalSteps={sessionData.totalSubtasks}
         activeStudents={activeStudents}
         totalStudents={students.length}
         helpRequestCount={helpRequestCount}
@@ -845,7 +837,6 @@ export function LiveSessionPage() {
           instructor={sessionData.instructor}
           totalStudents={sessionData.totalStudents}
           students={students}
-          progressData={progressData}
           selectedStudentId={selectedStudentId}
           onStudentSelect={handleStudentSelect}
         />
@@ -863,10 +854,14 @@ export function LiveSessionPage() {
         {/* Right Panel */}
         <RightPanel
           participants={participants}
-          groupProgress={groupProgress}
           notifications={notifications}
           onResolveNotification={handleResolveNotification}
           onViewScreen={handleViewScreen}
+          subtasks={sessionData.subtasks}
+          currentSubtaskIndex={sessionData.currentSubtaskIndex}
+          students={students}
+          selectedStudentId={selectedStudentId}
+          totalSubtasks={sessionData.totalSubtasks}
         />
       </div>
 

@@ -15,6 +15,15 @@ class Task(models.Model):
         null=True,
         blank=True  # 녹화에서 직접 생성 시 lecture 없이 생성 가능
     )
+    source_task = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='copies',
+        verbose_name='원본 과제',
+        help_text='이 과제가 복사된 원본 과제 (템플릿)'
+    )
     title = models.CharField(max_length=255, verbose_name='제목')
     description = models.TextField(blank=True, verbose_name='설명')
     order_index = models.IntegerField(verbose_name='순서', default=0)
@@ -27,6 +36,7 @@ class Task(models.Model):
         verbose_name_plural = '과제'
         indexes = [
             models.Index(fields=['lecture']),
+            models.Index(fields=['source_task']),
         ]
         ordering = ['order_index']
 
@@ -34,6 +44,51 @@ class Task(models.Model):
         if self.lecture:
             return f"{self.lecture.title} - {self.title}"
         return self.title
+
+    def copy_to_lecture(self, lecture, order_index=0):
+        """
+        Task와 Subtask를 복사하여 지정된 Lecture에 연결합니다.
+
+        Args:
+            lecture: 연결할 Lecture 인스턴스
+            order_index: 복사본의 순서 인덱스
+
+        Returns:
+            복사된 Task 인스턴스
+        """
+        task_copy = Task.objects.create(
+            lecture=lecture,
+            title=self.title,
+            description=self.description,
+            order_index=order_index,
+            source_task=self
+        )
+
+        # Subtask 일괄 복사 (bulk_create로 성능 최적화)
+        subtasks_to_create = []
+        for s in self.subtasks.all():
+            subtasks_to_create.append(Subtask(
+                task=task_copy,
+                title=s.title,
+                description=s.description,
+                order_index=s.order_index,
+                target_action=s.target_action,
+                target_element_hint=s.target_element_hint,
+                guide_text=s.guide_text,
+                voice_guide_text=s.voice_guide_text,
+                time=s.time,
+                text=s.text,
+                content_description=s.content_description,
+                view_id=s.view_id,
+                bounds=s.bounds,
+                target_package=s.target_package,
+                target_class=s.target_class,
+            ))
+
+        if subtasks_to_create:
+            Subtask.objects.bulk_create(subtasks_to_create)
+
+        return task_copy
 
 
 class Subtask(models.Model):

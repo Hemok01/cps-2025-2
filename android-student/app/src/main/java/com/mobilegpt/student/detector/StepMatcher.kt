@@ -97,13 +97,19 @@ class StepMatcher {
 
     /**
      * SubtaskDetail에서 기대값 추출
+     *
+     * [수정됨] viewId 필드를 올바르게 매핑:
+     * - viewId → subtask.viewId (UI 요소의 리소스 ID)
+     * - text → subtask.text 또는 contentDescription
+     * - package → targetPackage 우선, 없으면 targetApp 사용
      */
     private fun getExpectedValue(subtask: SubtaskDetail, field: String): String? {
         return when (field) {
-            "package" -> subtask.targetApp
-            "viewId" -> subtask.targetAction  // targetAction을 viewId로 매핑
-            "className" -> null  // SubtaskDetail에 className 필드 없음 - 추후 확장 가능
-            "text" -> subtask.description  // description을 텍스트로 사용
+            "package" -> subtask.effectivePackage  // targetPackage 우선, 없으면 targetApp
+            "viewId" -> subtask.viewId  // 수정: 실제 viewId 필드 사용
+            "className" -> subtask.targetClass  // 추가: targetClass 필드 활용
+            "text" -> subtask.text ?: subtask.contentDescription  // 수정: 실제 text 필드 우선
+            "contentDescription" -> subtask.contentDescription
             else -> null
         }
     }

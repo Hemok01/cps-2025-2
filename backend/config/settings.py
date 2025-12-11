@@ -157,9 +157,9 @@ REST_FRAMEWORK = {
         'rest_framework.throttling.UserRateThrottle'
     ],
     'DEFAULT_THROTTLE_RATES': {
-        'anon': '100/hour',
-        'user': '1000/hour',
-        'burst': '60/minute',
+        'anon': '10000/hour',    # 개발 환경: 제한 완화
+        'user': '100000/hour',   # 개발 환경: 제한 완화
+        'burst': '1000/minute',  # 개발 환경: 제한 완화
     }
 }
 

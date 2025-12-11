@@ -5,7 +5,8 @@ import {
   ProgressData,
   GroupProgress,
   LiveNotification,
-  StudentScreen
+  StudentScreen,
+  SubtaskInfo
 } from './live-session-types';
 import apiClient from './api-client';
 
@@ -109,8 +110,36 @@ function delay(ms: number): Promise<void> {
 export const liveSessionService = {
   async getSessionData(sessionId: number): Promise<LiveSessionData> {
     try {
-      const response = await apiClient.get(`/sessions/${sessionId}/current/`);
-      const session = response.data;
+      // 세션 기본 정보와 subtasks 목록을 병렬로 조회
+      const [sessionResponse, subtasksResponse] = await Promise.all([
+        apiClient.get(`/sessions/${sessionId}/current/`),
+        apiClient.get(`/sessions/${sessionId}/subtasks/`).catch(() => ({
+          data: { subtasks: [], current_subtask_index: 0, total_subtasks: 0, current_subtask: null }
+        }))
+      ]);
+
+      const session = sessionResponse.data;
+      const subtasksData = subtasksResponse.data;
+
+      // Subtask 목록 변환
+      const subtasks: SubtaskInfo[] = (subtasksData.subtasks || []).map((s: any) => ({
+        id: s.id,
+        title: s.title,
+        description: s.description,
+        orderIndex: s.orderIndex ?? s.order_index ?? 0,
+        targetAction: s.targetAction ?? s.target_action,
+        guideText: s.guideText ?? s.guide_text,
+        taskId: s.taskId ?? s.task_id,
+        taskTitle: s.taskTitle ?? s.task_title,
+      }));
+
+      // 현재 단계 정보
+      const currentSubtask: SubtaskInfo | null = subtasksData.current_subtask ? {
+        id: subtasksData.current_subtask.id,
+        title: subtasksData.current_subtask.title,
+        orderIndex: subtasksData.current_subtask_index ?? 0,
+      } : null;
+
       return {
         sessionId: session.id,
         sessionCode: session.session_code || session.code,
@@ -120,7 +149,11 @@ export const liveSessionService = {
         totalStudents: session.total_participants || session.participant_count || 0,
         status: this.mapSessionStatus(session.status),
         startedAt: session.started_at,
-        currentStep: session.current_subtask?.title || session.current_step,
+        // Subtask tracking
+        subtasks,
+        currentSubtask,
+        currentSubtaskIndex: subtasksData.current_subtask_index ?? 0,
+        totalSubtasks: subtasksData.total_subtasks ?? subtasks.length,
       };
     } catch (error) {
       console.error('Failed to fetch session data:', error);
@@ -149,7 +182,7 @@ export const liveSessionService = {
       // API returns { session_id, participants, total_count }
       const participants = response.data.participants || response.data;
 
-      return participants.map((participant: any, index: number) => {
+      const realStudents = participants.map((participant: any, index: number) => {
         // Determine status: help_needed > active > inactive
         let status: 'active' | 'inactive' | 'help_needed' = 'inactive';
 
@@ -159,14 +192,25 @@ export const liveSessionService = {
           status = 'active';
         }
 
+        // completed_subtasks는 JSONField로 ID 배열이 저장됨
+        const completedSubtasks = participant.completed_subtasks || [];
+        const currentSubtaskId = participant.current_subtask?.id || null;
+
         return {
           id: participant.user?.id || participant.id,
           name: participant.name || participant.user?.name || participant.display_name || '익명',
           avatarUrl: participant.user?.avatar_url || participant.avatar_url,
           isSelected: index === 0, // First student is selected by default
           status,
+          deviceId: participant.device_id,
+          // Step completion tracking
+          completedSubtasks,
+          currentSubtaskId,
+          currentStepCompleted: currentSubtaskId ? completedSubtasks.includes(currentSubtaskId) : false,
         };
       });
+
+      return realStudents;
     } catch (error) {
       console.error('Failed to fetch student list:', error);
       return [];

@@ -1,11 +1,10 @@
 import { useState, useMemo } from 'react';
-import { StudentListItem, ProgressData } from '../../lib/live-session-types';
+import { StudentListItem } from '../../lib/live-session-types';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { Progress } from '../ui/progress';
 import { ScrollArea } from '../ui/scroll-area';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
-import { Search, Users, AlertCircle, CheckCircle, CheckCircle2, XCircle, ArrowUpDown } from 'lucide-react';
+import { Search, Users, AlertCircle, CheckCircle, CheckCircle2, XCircle, ArrowUpDown, ChevronDown, ChevronUp } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,7 +39,6 @@ interface LeftPanelProps {
   instructor: string;
   totalStudents: number;
   students: StudentListItem[];
-  progressData: ProgressData[];
   selectedStudentId: number | null;
   onStudentSelect: (studentId: number) => void;
 }
@@ -54,7 +52,6 @@ export function LeftPanel({
   instructor,
   totalStudents,
   students,
-  progressData,
   selectedStudentId,
   onStudentSelect,
 }: LeftPanelProps) {
@@ -87,40 +84,38 @@ export function LeftPanel({
   };
 
   return (
-    <div className="h-full flex flex-col" style={{ width: '300px', backgroundColor: 'white' }}>
-      <div className="flex-1 min-h-0 overflow-hidden">
-        <ScrollArea className="h-full">
-          <div className="flex flex-col pb-4">
-            <LectureInfoCard
-              lectureName={lectureName}
-              lectureDate={lectureDate}
-              instructor={instructor}
-              totalStudents={totalStudents}
-            />
+    <div className="h-full flex flex-col" style={{ width: '350px', minWidth: '350px', backgroundColor: 'white' }}>
+      {/* 고정 영역: 강의 정보 + 상태 필터 */}
+      <div className="flex-shrink-0">
+        <LectureInfoCard
+          lectureName={lectureName}
+          lectureDate={lectureDate}
+          instructor={instructor}
+          totalStudents={totalStudents}
+        />
 
-            <StatusFilterButtons
-              filterType={filterType}
-              onFilterChange={setFilterType}
-              getStatusCount={getStatusCount}
-            />
+        <StatusFilterButtons
+          filterType={filterType}
+          onFilterChange={setFilterType}
+          getStatusCount={getStatusCount}
+        />
+      </div>
 
-            <StudentListCard
-              students={filteredStudents}
-              totalStudents={students.length}
-              selectedStudentId={selectedStudentId}
-              searchQuery={searchQuery}
-              filterType={filterType}
-              sortType={sortType}
-              onSearchChange={setSearchQuery}
-              onFilterChange={setFilterType}
-              onSortChange={setSortType}
-              onStudentSelect={onStudentSelect}
-              onResetFilters={handleResetFilters}
-            />
-
-            <ProgressCard progressData={progressData} />
-          </div>
-        </ScrollArea>
+      {/* 가변 영역: 수강생 목록 */}
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden mx-4 mt-2 mb-4">
+        <StudentListCard
+          students={filteredStudents}
+          totalStudents={students.length}
+          selectedStudentId={selectedStudentId}
+          searchQuery={searchQuery}
+          filterType={filterType}
+          sortType={sortType}
+          onSearchChange={setSearchQuery}
+          onFilterChange={setFilterType}
+          onSortChange={setSortType}
+          onStudentSelect={onStudentSelect}
+          onResetFilters={handleResetFilters}
+        />
       </div>
     </div>
   );
@@ -135,6 +130,8 @@ interface LectureInfoCardProps {
 }
 
 function LectureInfoCard({ lectureName, lectureDate, instructor, totalStudents }: LectureInfoCardProps) {
+  const [isCollapsed, setIsCollapsed] = useState(true);
+
   const infoItems = [
     { label: '강의명', value: lectureName },
     { label: '강의 날짜', value: lectureDate },
@@ -143,18 +140,30 @@ function LectureInfoCard({ lectureName, lectureDate, instructor, totalStudents }
   ];
 
   return (
-    <Card className="m-4 mb-2 gap-2" style={{ borderRadius: 'var(--radius-lg)' }}>
-      <CardHeader className="pb-0">
-        <CardTitle className="text-lg">강의 정보</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-2 text-sm">
-        {infoItems.map((item, index) => (
-          <div key={index} className="flex justify-between">
-            <span style={{ color: 'var(--text-secondary)' }}>{item.label}:</span>
-            <span>{item.value}</span>
-          </div>
-        ))}
-      </CardContent>
+    <Card className="m-4 mb-2" style={{ borderRadius: 'var(--radius-lg)' }}>
+      <div
+        className={`flex items-center justify-between cursor-pointer select-none ${isCollapsed ? 'px-4 py-2' : 'px-6 pt-6 pb-0'}`}
+        onClick={() => setIsCollapsed(!isCollapsed)}
+      >
+        <span className={isCollapsed ? 'text-sm font-medium' : 'text-lg font-semibold'}>강의 정보</span>
+        <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+          {isCollapsed ? (
+            <ChevronDown className="w-4 h-4" style={{ color: 'var(--text-secondary)' }} />
+          ) : (
+            <ChevronUp className="w-4 h-4" style={{ color: 'var(--text-secondary)' }} />
+          )}
+        </Button>
+      </div>
+      {!isCollapsed && (
+        <CardContent className="space-y-2 text-sm pt-3">
+          {infoItems.map((item, index) => (
+            <div key={index} className="flex justify-between">
+              <span style={{ color: 'var(--text-secondary)' }}>{item.label}:</span>
+              <span>{item.value}</span>
+            </div>
+          ))}
+        </CardContent>
+      )}
     </Card>
   );
 }
@@ -220,8 +229,8 @@ function StudentListCard({
   onResetFilters,
 }: StudentListCardProps) {
   return (
-    <Card className="m-4 mt-2 mb-2" style={{ borderRadius: 'var(--radius-lg)' }}>
-      <CardHeader className="pb-3">
+    <Card className="flex-1 flex flex-col min-h-0 overflow-hidden" style={{ borderRadius: 'var(--radius-lg)' }}>
+      <CardHeader className="pb-1.5 flex-shrink-0">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg">수강생 목록</CardTitle>
           <Button
@@ -234,20 +243,22 @@ function StudentListCard({
           </Button>
         </div>
       </CardHeader>
-      <CardContent className="pb-4">
-        <SearchAndSort
-          searchQuery={searchQuery}
-          sortType={sortType}
-          onSearchChange={onSearchChange}
-          onSortChange={onSortChange}
-        />
+      <CardContent className="flex-1 flex flex-col min-h-0 overflow-hidden pb-4">
+        <div className="flex-shrink-0">
+          <SearchAndSort
+            searchQuery={searchQuery}
+            sortType={sortType}
+            onSearchChange={onSearchChange}
+            onSortChange={onSortChange}
+          />
 
-        <FilterSummary
-          filteredCount={students.length}
-          totalCount={totalStudents}
-          hasFilters={searchQuery !== '' || filterType !== 'all'}
-          onReset={onResetFilters}
-        />
+          <FilterSummary
+            filteredCount={students.length}
+            totalCount={totalStudents}
+            hasFilters={searchQuery !== '' || filterType !== 'all'}
+            onReset={onResetFilters}
+          />
+        </div>
 
         <StudentList
           students={students}
@@ -336,27 +347,29 @@ function StudentList({ students, selectedStudentId, onStudentSelect }: StudentLi
   }
 
   return (
-    <div className="relative" style={{ height: '300px' }}>
-      <ScrollArea className="h-full">
-        <div className="space-y-1 pb-2">
-          {students.map((student) => (
-            <StudentListItem
-              key={student.id}
-              student={student}
-              isSelected={selectedStudentId === student.id}
-              onSelect={onStudentSelect}
-            />
-          ))}
-        </div>
-      </ScrollArea>
+    <div className="flex-1 min-h-0 relative">
+      <div className="absolute inset-0">
+        <ScrollArea className="h-full w-full">
+          <div className="space-y-1 pb-2">
+            {students.map((student) => (
+              <StudentListItem
+                key={student.id}
+                student={student}
+                isSelected={selectedStudentId === student.id}
+                onSelect={onStudentSelect}
+              />
+            ))}
+          </div>
+        </ScrollArea>
+      </div>
     </div>
   );
 }
 
 function EmptyStudentList() {
   return (
-    <div className="text-center py-8" style={{ color: 'var(--text-secondary)', height: '300px' }}>
-      <Users className="w-12 h-12 mx-auto mb-2 opacity-50" />
+    <div className="flex-1 flex flex-col items-center justify-center" style={{ color: 'var(--text-secondary)' }}>
+      <Users className="w-12 h-12 mb-2 opacity-50" />
       <p className="text-sm">검색 결과가 없습니다</p>
     </div>
   );
@@ -420,48 +433,3 @@ function StudentListItem({ student, isSelected, onSelect }: StudentListItemProps
   );
 }
 
-interface ProgressCardProps {
-  progressData: ProgressData[];
-}
-
-function ProgressCard({ progressData }: ProgressCardProps) {
-  return (
-    <Card className="m-4 mt-2 mb-4" style={{ borderRadius: 'var(--radius-lg)' }}>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-lg">진도 현황</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {progressData.map((progress, index) => (
-          <ProgressItem key={index} progress={progress} />
-        ))}
-      </CardContent>
-    </Card>
-  );
-}
-
-interface ProgressItemProps {
-  progress: ProgressData;
-}
-
-function ProgressItem({ progress }: ProgressItemProps) {
-  return (
-    <div className="space-y-2">
-      <div className="flex justify-between items-center text-sm">
-        <span>{progress.label}</span>
-        <span style={{ color: 'var(--text-secondary)' }}>
-          {progress.current}/{progress.total}
-        </span>
-      </div>
-      <div className="flex items-center gap-2">
-        <Progress 
-          value={progress.percentage} 
-          className="flex-1 h-6"
-          style={{ backgroundColor: 'var(--muted)' }}
-        />
-        <span className="text-sm" style={{ color: progress.color, fontWeight: 'var(--font-weight-semibold)', minWidth: '45px' }}>
-          {progress.percentage}%
-        </span>
-      </div>
-    </div>
-  );
-}

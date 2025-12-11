@@ -21,6 +21,7 @@ from .views import (
     ReportCompletionView,
     SessionCompletionStatusView,
     SessionSummaryView,
+    SessionSubtasksView,
 )
 from .screenshot_views import (
     ScreenshotUploadView,
@@ -59,6 +60,9 @@ urlpatterns = [
 
     # Session summary (세션 요약)
     path('<int:session_id>/summary/', SessionSummaryView.as_view(), name='session-summary'),
+
+    # Session subtasks (세션 단계 목록)
+    path('<int:session_id>/subtasks/', SessionSubtasksView.as_view(), name='session-subtasks'),
 
     # Screenshot endpoints (학생 화면 스크린샷)
     path('<int:session_id>/screenshots/', StudentScreenshotListView.as_view(), name='session-screenshots'),

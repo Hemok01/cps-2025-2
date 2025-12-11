@@ -2,6 +2,21 @@
 
 import { SessionLecture } from './types';
 
+/**
+ * 단계(Subtask) 정보
+ * 세션에서 진행되는 각 단계의 상세 정보
+ */
+export interface SubtaskInfo {
+  id: number;
+  title: string;
+  description?: string;
+  orderIndex: number;
+  targetAction?: string;
+  guideText?: string;
+  taskId?: number;
+  taskTitle?: string;
+}
+
 export interface LiveSessionData {
   sessionId: number;
   sessionCode: string;
@@ -13,6 +28,11 @@ export interface LiveSessionData {
   startedAt?: string;
   lectures?: SessionLecture[]; // Multiple lectures in session
   activeLectureId?: number;
+  // Subtask tracking
+  subtasks: SubtaskInfo[];           // 전체 단계 목록
+  currentSubtask: SubtaskInfo | null; // 현재 진행 중인 단계
+  currentSubtaskIndex: number;       // 현재 단계 인덱스 (0-based)
+  totalSubtasks: number;             // 전체 단계 수
 }
 
 export interface StudentListItem {
@@ -25,9 +45,11 @@ export interface StudentListItem {
   hasRecentScreenshot?: boolean;
   lastScreenshotAt?: string;
   // Step completion tracking
-  completedSubtasks?: number[];
-  currentStepCompleted?: boolean;
-  lastCompletedAt?: string;
+  completedSubtasks?: number[];        // 완료된 Subtask ID 배열
+  currentStepCompleted?: boolean;      // 현재 단계 완료 여부
+  lastCompletedAt?: string;            // 마지막 완료 시간
+  currentSubtaskId?: number;           // 현재 진행 중인 단계 ID
+  progressPercentage?: number;         // 진행률 (0-100)
 }
 
 export interface ProgressData {

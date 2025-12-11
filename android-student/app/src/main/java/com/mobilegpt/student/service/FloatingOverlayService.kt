@@ -31,6 +31,8 @@ import androidx.core.app.NotificationCompat
 import com.mobilegpt.student.R
 import com.mobilegpt.student.data.local.TokenPreferences
 import com.mobilegpt.student.data.websocket.WebSocketManager
+import com.mobilegpt.student.detector.models.ErrorType
+import com.mobilegpt.student.detector.models.TrackingState
 import com.mobilegpt.student.presentation.MainActivity
 import dagger.hilt.android.AndroidEntryPoint
 import dagger.hilt.android.EntryPointAccessors
@@ -61,6 +63,7 @@ class FloatingOverlayService : Service() {
         const val ACTION_UPDATE_PROGRESS = "com.mobilegpt.student.ACTION_UPDATE_PROGRESS"
         const val ACTION_STEP_COMPLETE = "com.mobilegpt.student.ACTION_STEP_COMPLETE"
         const val ACTION_HELP_REQUEST = "com.mobilegpt.student.ACTION_HELP_REQUEST"
+        const val ACTION_SESSION_ENDED = "com.mobilegpt.student.ACTION_SESSION_ENDED"
 
         // Intent Extras
         const val EXTRA_CURRENT_STEP = "extra_current_step"
@@ -111,6 +114,18 @@ class FloatingOverlayService : Service() {
         }
 
         /**
+         * 세션 종료 시 서비스 중지
+         * WebSocket 메시지와 별개로 AccessibilityService에서도 호출 가능
+         */
+        fun onSessionEnded(context: Context) {
+            Log.d(TAG, "onSessionEnded called")
+            val intent = Intent(context, FloatingOverlayService::class.java).apply {
+                action = ACTION_SESSION_ENDED
+            }
+            context.startService(intent)
+        }
+
+        /**
          * 진행도 업데이트
          */
         fun updateProgress(
@@ -154,6 +169,13 @@ class FloatingOverlayService : Service() {
     private var subtaskId: Int? = null
     private var isConnected = true
 
+    // 연결 끊김 시 자동 종료 타이머
+    private var disconnectTimeoutRunnable: Runnable? = null
+    private val DISCONNECT_TIMEOUT_MS = 30_000L  // 30초
+
+    // UI 비교 기반 추적 상태
+    private var currentTrackingState: TrackingState = TrackingState.WAITING
+
     // 콜백
     private var onStepComplete: (() -> Unit)? = null
     private var onHelpRequest: (() -> Unit)? = null
@@ -164,14 +186,37 @@ class FloatingOverlayService : Service() {
     // 완료 피드백 오버레이
     private var completionFeedbackView: View? = null
 
-    // 자동 완료 이벤트 수신용 BroadcastReceiver
-    private val stepCompletionReceiver = object : BroadcastReceiver() {
+    // 자동 완료 및 추적 상태 이벤트 수신용 BroadcastReceiver
+    private val accessibilityEventReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == MobileGPTAccessibilityService.ACTION_STEP_COMPLETED) {
-                val subtaskId = intent.getIntExtra(MobileGPTAccessibilityService.EXTRA_SUBTASK_ID, -1)
-                val subtaskTitle = intent.getStringExtra(MobileGPTAccessibilityService.EXTRA_SUBTASK_TITLE) ?: ""
-                Log.d(TAG, "Received step completion broadcast: id=$subtaskId, title=$subtaskTitle")
-                showCompletionFeedback(subtaskTitle)
+            when (intent?.action) {
+                MobileGPTAccessibilityService.ACTION_STEP_COMPLETED -> {
+                    val subtaskId = intent.getIntExtra(MobileGPTAccessibilityService.EXTRA_SUBTASK_ID, -1)
+                    val subtaskTitle = intent.getStringExtra(MobileGPTAccessibilityService.EXTRA_SUBTASK_TITLE) ?: ""
+                    Log.d(TAG, "Received step completion broadcast: id=$subtaskId, title=$subtaskTitle")
+                    showCompletionFeedback(subtaskTitle)
+
+                    // ★ 단계 완료 후 다음 단계 정보로 오버레이 UI 업데이트
+                    refreshProgressFromPreferences()
+                }
+
+                MobileGPTAccessibilityService.ACTION_TRACKING_STATE_CHANGED -> {
+                    val stateName = intent.getStringExtra(MobileGPTAccessibilityService.EXTRA_TRACKING_STATE) ?: "WAITING"
+                    val newState = try {
+                        TrackingState.valueOf(stateName)
+                    } catch (e: Exception) {
+                        TrackingState.WAITING
+                    }
+                    Log.d(TAG, "Received tracking state change: $stateName")
+                    updateTrackingStateUI(newState)
+                }
+
+                MobileGPTAccessibilityService.ACTION_ERROR_DETECTED -> {
+                    val errorTypeName = intent.getStringExtra(MobileGPTAccessibilityService.EXTRA_ERROR_TYPE) ?: ""
+                    val errorSubtaskId = intent.getIntExtra(MobileGPTAccessibilityService.EXTRA_SUBTASK_ID, -1)
+                    Log.d(TAG, "Received error broadcast: type=$errorTypeName, subtaskId=$errorSubtaskId")
+                    showErrorFeedback(errorTypeName)
+                }
             }
         }
     }
@@ -182,6 +227,7 @@ class FloatingOverlayService : Service() {
     interface FloatingOverlayEntryPoint {
         fun webSocketManager(): WebSocketManager
         fun tokenPreferences(): TokenPreferences
+        fun sessionPreferences(): com.mobilegpt.student.data.local.SessionPreferences
     }
 
     private val entryPoint by lazy {
@@ -196,14 +242,19 @@ class FloatingOverlayService : Service() {
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         createNotificationChannel()
 
-        // 자동 완료 이벤트 수신용 BroadcastReceiver 등록
-        val filter = IntentFilter(MobileGPTAccessibilityService.ACTION_STEP_COMPLETED)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(stepCompletionReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            registerReceiver(stepCompletionReceiver, filter)
+        // AccessibilityService 이벤트 수신용 BroadcastReceiver 등록
+        // (단계 완료, 추적 상태 변경, 오류 감지)
+        val filter = IntentFilter().apply {
+            addAction(MobileGPTAccessibilityService.ACTION_STEP_COMPLETED)
+            addAction(MobileGPTAccessibilityService.ACTION_TRACKING_STATE_CHANGED)
+            addAction(MobileGPTAccessibilityService.ACTION_ERROR_DETECTED)
         }
-        Log.d(TAG, "Step completion receiver registered")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(accessibilityEventReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(accessibilityEventReceiver, filter)
+        }
+        Log.d(TAG, "Accessibility event receiver registered (completion, tracking, error)")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -247,8 +298,33 @@ class FloatingOverlayService : Service() {
                 isConnected = intent.getBooleanExtra("extra_is_connected", true)
                 updateConnectionStatus()
             }
+            ACTION_SESSION_ENDED -> {
+                Log.d(TAG, "Session ended - stopping overlay and screen capture")
+                hideOverlay()
+                // 스크린캡처도 함께 종료
+                ScreenCaptureService.stop(this)
+                ScreenCaptureService.clearMediaProjectionResult()
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+            }
         }
-        return START_STICKY
+        // START_NOT_STICKY: 앱이 종료되면 서비스도 재시작하지 않음
+        return START_NOT_STICKY
+    }
+
+    /**
+     * 앱이 최근 앱에서 스와이프로 제거될 때 호출됨
+     */
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        Log.d(TAG, "App removed from recent apps - stopping overlay and screen capture")
+        hideOverlay()
+        hideCompletionFeedback()
+        // 스크린캡처도 함께 종료
+        ScreenCaptureService.stop(this)
+        ScreenCaptureService.clearMediaProjectionResult()
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
+        super.onTaskRemoved(rootIntent)
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -257,10 +333,13 @@ class FloatingOverlayService : Service() {
         hideOverlay()
         hideCompletionFeedback()
 
+        // 연결 끊김 타이머 취소
+        cancelDisconnectTimeout()
+
         // BroadcastReceiver 해제
         try {
-            unregisterReceiver(stepCompletionReceiver)
-            Log.d(TAG, "Step completion receiver unregistered")
+            unregisterReceiver(accessibilityEventReceiver)
+            Log.d(TAG, "Accessibility event receiver unregistered")
         } catch (e: Exception) {
             Log.w(TAG, "Failed to unregister receiver", e)
         }
@@ -393,15 +472,14 @@ class FloatingOverlayService : Service() {
             }
             addView(titleText)
 
-            // 연결 상태 인디케이터
-            val statusDot = View(context).apply {
+            // 추적 상태 인디케이터 (TrackingState 이모지 + 색상)
+            val statusIndicator = TextView(context).apply {
                 id = R.id.overlay_status_dot
-                setBackgroundColor(0xFF4CAF50.toInt()) // 녹색
-                layoutParams = LinearLayout.LayoutParams(16, 16).apply {
-                    marginStart = 16
-                }
+                text = currentTrackingState.emoji
+                textSize = 16f
+                setPadding(16, 0, 0, 0)
             }
-            addView(statusDot)
+            addView(statusIndicator)
         }
         container.addView(collapsedView)
 
@@ -559,6 +637,45 @@ class FloatingOverlayService : Service() {
     }
 
     /**
+     * SharedPreferences에서 진행도 새로고침
+     *
+     * AccessibilityService가 단계 완료를 보고하면 next_subtask가 SharedPreferences에 저장됨.
+     * 이 메서드는 저장된 다음 단계 정보를 읽어 오버레이 UI를 업데이트함.
+     */
+    private fun refreshProgressFromPreferences() {
+        mainHandler.post {
+            try {
+                val sessionPrefs = entryPoint.sessionPreferences()
+                val nextSubtask = sessionPrefs.getCurrentSubtaskDetail()
+
+                if (nextSubtask != null) {
+                    // 다음 단계 정보가 있으면 업데이트
+                    val newStep = (nextSubtask.orderIndex ?: (currentStep)) + 1  // 0-based -> 1-based
+                    if (newStep != currentStep || stepTitle != nextSubtask.title) {
+                        currentStep = newStep
+                        stepTitle = nextSubtask.title
+                        subtaskId = nextSubtask.id
+
+                        Log.d(TAG, "refreshProgressFromPreferences: Updated to step=$currentStep, title=$stepTitle, id=$subtaskId")
+                        updateOverlayUI()
+                    }
+                } else {
+                    // 다음 단계가 없으면 모든 단계 완료 (마지막 단계였음)
+                    Log.d(TAG, "refreshProgressFromPreferences: No next subtask - all steps completed!")
+                    // currentStep을 totalSteps로 설정하여 완료 상태 표시
+                    if (currentStep < totalSteps) {
+                        currentStep = totalSteps
+                        stepTitle = "✅ 모든 단계 완료!"
+                        updateOverlayUI()
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to refresh progress from preferences", e)
+            }
+        }
+    }
+
+    /**
      * 오버레이 숨기기
      */
     private fun hideOverlay() {
@@ -632,14 +749,127 @@ class FloatingOverlayService : Service() {
     }
 
     /**
-     * 연결 상태 UI 업데이트
+     * 연결 상태 UI 업데이트 및 자동 종료 타이머 관리
      */
     private fun updateConnectionStatus() {
-        overlayView?.let { view ->
-            val statusDot = view.findViewById<View>(R.id.overlay_status_dot)
-            statusDot?.setBackgroundColor(
-                if (isConnected) 0xFF4CAF50.toInt() else 0xFFFF5722.toInt()  // 연결: 녹색, 끊김: 주황색
-            )
+        if (!isConnected) {
+            // 연결 끊김 시 상태를 ERROR로 표시
+            updateTrackingStateUI(TrackingState.ERROR)
+
+            // 자동 종료 타이머 시작 (이미 있으면 재설정)
+            startDisconnectTimeout()
+            Log.d(TAG, "Connection lost - starting auto-stop timer (${DISCONNECT_TIMEOUT_MS / 1000}s)")
+        } else {
+            // 연결 복구 시 타이머 취소
+            cancelDisconnectTimeout()
+            Log.d(TAG, "Connection restored - cancelled auto-stop timer")
+        }
+    }
+
+    /**
+     * 연결 끊김 타임아웃 시작
+     * 지정된 시간 동안 연결이 복구되지 않으면 서비스 자동 종료
+     */
+    private fun startDisconnectTimeout() {
+        // 기존 타이머 취소
+        cancelDisconnectTimeout()
+
+        disconnectTimeoutRunnable = Runnable {
+            Log.d(TAG, "Disconnect timeout reached - stopping overlay and screen capture automatically")
+            hideOverlay()
+            hideCompletionFeedback()
+            // 스크린캡처도 함께 종료
+            ScreenCaptureService.stop(this)
+            ScreenCaptureService.clearMediaProjectionResult()
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+        }
+        mainHandler.postDelayed(disconnectTimeoutRunnable!!, DISCONNECT_TIMEOUT_MS)
+    }
+
+    /**
+     * 연결 끊김 타임아웃 취소
+     */
+    private fun cancelDisconnectTimeout() {
+        disconnectTimeoutRunnable?.let {
+            mainHandler.removeCallbacks(it)
+            disconnectTimeoutRunnable = null
+        }
+    }
+
+    // ==================== TrackingState UI ====================
+
+    /**
+     * 추적 상태 UI 업데이트
+     *
+     * TrackingState에 따라 상태 인디케이터의 이모지를 변경합니다.
+     * - WAITING: 👀 (대기 중)
+     * - CHECKING: 🔍 (확인 중)
+     * - MATCHED: ✅ (완료!)
+     * - ERROR: ❌ (오류)
+     * - COMPLETED: 🎉 (완료!)
+     * - IN_PROGRESS: 📱 (진행 중)
+     */
+    private fun updateTrackingStateUI(newState: TrackingState) {
+        mainHandler.post {
+            currentTrackingState = newState
+
+            overlayView?.let { view ->
+                val statusIndicator = view.findViewById<TextView>(R.id.overlay_status_dot)
+                statusIndicator?.text = newState.emoji
+            }
+
+            Log.d(TAG, "Tracking state UI updated: ${newState.displayLabel}")
+        }
+    }
+
+    /**
+     * 오류 피드백 표시
+     *
+     * 오류 타입에 따라 잠깐 오류 상태를 표시합니다.
+     */
+    private fun showErrorFeedback(errorTypeName: String) {
+        mainHandler.post {
+            try {
+                // 상태를 ERROR로 변경
+                updateTrackingStateUI(TrackingState.ERROR)
+
+                // 진동 피드백 (짧게)
+                @Suppress("DEPRECATION")
+                val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as? android.os.Vibrator
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    vibrator?.vibrate(
+                        android.os.VibrationEffect.createOneShot(100, android.os.VibrationEffect.DEFAULT_AMPLITUDE)
+                    )
+                } else {
+                    @Suppress("DEPRECATION")
+                    vibrator?.vibrate(100)
+                }
+
+                // 오류 메시지 표시 (토스트 대신 오버레이 제목 변경)
+                val errorMessage = when (errorTypeName) {
+                    "WRONG_APP" -> "⚠️ 다른 앱입니다"
+                    "FROZEN_SCREEN" -> "⚠️ 화면이 멈췄습니다"
+                    "WRONG_CLICK" -> "⚠️ 잘못된 클릭"
+                    else -> "⚠️ 오류 발생"
+                }
+
+                overlayView?.let { view ->
+                    val titleText = view.findViewById<TextView>(R.id.overlay_title_text)
+                    val originalTitle = stepTitle.take(15) + if (stepTitle.length > 15) "..." else ""
+                    titleText?.text = errorMessage
+
+                    // 2초 후 원래 제목으로 복원
+                    mainHandler.postDelayed({
+                        titleText?.text = originalTitle
+                        updateTrackingStateUI(TrackingState.WAITING)
+                    }, 2000)
+                }
+
+                Log.d(TAG, "Error feedback shown: $errorTypeName")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to show error feedback", e)
+            }
         }
     }
 
