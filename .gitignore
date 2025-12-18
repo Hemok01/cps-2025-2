@@ -1,6 +1,9 @@
 # Claude Code 설정
-/.claude
-/.mcp.json
+.claude/
+CLAUDE.md
+.mcp.json
+.claudeignore
+.github/workflows/claude*.yml
 
 # Python
 __pycache__/
@@ -75,5 +78,10 @@ kafka_data/
 .env
 .env.local
 .env.*.local
+.env.production
 frontend/.env
+frontend/.env.production
 mobilegpt2/
+
+# Gradle wrapper binary (optional - some teams include it)
+**/gradle-wrapper.jar
