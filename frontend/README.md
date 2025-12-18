@@ -1,6 +1,6 @@
-# MobileGPT 강의자 대시보드
+# MobEdu 강의자 대시보드
 
-MobileGPT 시니어 교육 서비스의 강의자 대시보드 프론트엔드입니다.
+MobEdu 시니어 교육 서비스의 강의자 대시보드 프론트엔드입니다.
 
 ## 기술 스택
 
@@ -218,3 +218,7 @@ https://www.figma.com/design/ud1AXuUAbmbrlbDTLjUXLj/Web-Dashboard-Flowchart
 ## 라이선스
 
 교육용 프로젝트
+
+---
+
+**최종 업데이트**: 2025-12-18

@@ -118,8 +118,19 @@ cps 2025-2/
 │       ├── lib/               # API 서비스, 타입
 │       └── styles/            # Tailwind CSS
 │
-├── CLAUDE.md                   # 개발 가이드 (용어, API 상세)
-└── README.md                   # 이 파일
+├── docs/                      # 문서
+│   ├── architecture/          # 아키텍처 다이어그램
+│   ├── PROGRESS.md           # 진행 상황
+│   └── plan.md               # 계획
+│
+├── design/                    # 설계 문서
+│
+├── test-reports/              # 테스트 보고서 및 스크립트
+│
+├── scripts/                   # 유틸리티 스크립트
+│   └── deploy-apk.sh         # APK 배포 스크립트
+│
+└── README.md                  # 이 파일
 ```
 
 ---
@@ -464,9 +475,12 @@ docker-compose exec backend python manage.py migrate
 
 ## 참고 문서
 
-- [CLAUDE.md](CLAUDE.md) - 개발 가이드 (용어 체계, API 상세)
 - [backend/README.md](backend/README.md) - 백엔드 상세
 - [frontend/README.md](frontend/README.md) - 프론트엔드 상세
+- [android-instructor/README.md](android-instructor/README.md) - 강의자 앱 상세
+- [android-student/README.md](android-student/README.md) - 학생 앱 상세
+- [docs/architecture/](docs/architecture/) - 시스템 아키텍처 다이어그램
+- [design/](design/) - 상세 설계 문서
 
 ---
 

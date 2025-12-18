@@ -4,30 +4,33 @@
 
 ## 📁 파일 목록
 
-### 1. INTEGRATION_TEST_REPORT.md
-프론트엔드와 백엔드 API 연결 통합 테스트의 상세 보고서입니다.
+### 테스트 보고서
 
-**내용**:
-- 테스트 환경 설정
-- API 연결 테스트 결과
-- 발견된 문제점 및 해결 방안
-- 다음 단계 계획
+| 파일 | 설명 |
+|------|------|
+| `INTEGRATION_TEST_REPORT.md` | 프론트엔드-백엔드 API 통합 테스트 보고서 |
+| `SESSION_CONTROL_TEST_REPORT.md` | 세션 제어 기능 테스트 보고서 |
+| `RECORDING_TO_TASK_INTEGRATION_ANALYSIS.md` | 녹화→과제 변환 통합 분석 |
+| `DOCKER_COMPOSE_TEST_REPORT.md` | Docker Compose 환경 테스트 보고서 |
 
-### 2. test-api.sh
-백엔드 API를 자동으로 테스트하는 쉘 스크립트입니다.
+### 테스트 스크립트
 
-**사용법**:
-```bash
-cd test-reports
-./test-api.sh
-```
+| 파일 | 설명 |
+|------|------|
+| `test-api.sh` | 백엔드 API 자동 테스트 |
+| `test-session-control.sh` | 세션 제어 API 테스트 |
+| `create-sample-lectures.sh` | 샘플 강의 데이터 생성 |
+| `create_sample_lectures.py` | 샘플 데이터 생성 (Python) |
 
-**테스트 항목**:
-- ✅ 로그인 (JWT 토큰 발급)
-- ✅ 사용자 정보 조회
-- ✅ 강의 목록 조회
-- ✅ 세션 생성
-- ✅ 헬스 체크
+### WebSocket 테스트
+
+| 파일 | 설명 |
+|------|------|
+| `test_websocket_full.py` | WebSocket 전체 테스트 (Python) |
+| `test_ws_final.py` | WebSocket 최종 테스트 |
+| `test_broadcast.py` | 브로드캐스트 테스트 |
+| `test_browser_websocket.html` | 브라우저 WebSocket 테스트 |
+| `test_ws_simple.html` | 간단한 WebSocket 테스트 |
 
 ## 🚀 빠른 시작
 
@@ -113,4 +116,4 @@ docker-compose exec backend python manage.py migrate
 
 ## 📅 마지막 업데이트
 
-2025-11-19 - 초기 통합 테스트 완료
+2025-12-18

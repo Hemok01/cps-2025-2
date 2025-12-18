@@ -1,10 +1,10 @@
-# MobileGPT Student App
+# MobEdu - 학생용 Android 앱
 
 시니어를 위한 디지털 교육 도우미 - 수강생용 Android 앱
 
 ## 📱 프로젝트 개요
 
-MobileGPT Student App은 시니어 사용자가 실시간 강의 세션에 참가하고, AccessibilityService를 통해 학습 과정을 기록하며, M-GPT의 도움을 받을 수 있는 Android 애플리케이션입니다.
+MobEdu Student App은 시니어 사용자가 실시간 강의 세션에 참가하고, AccessibilityService를 통해 학습 과정을 기록하며, 강사의 실시간 가이드를 받을 수 있는 Android 애플리케이션입니다.
 
 ## 🏗️ 기술 스택
 
@@ -239,6 +239,8 @@ sessionRepository.observeSessionMessages()
 
 이 프로젝트는 교육 목적으로 개발되었습니다.
 
-## 👥 기여
+---
 
-프로젝트에 기여하고 싶으시다면 이슈를 등록하거나 Pull Request를 보내주세요.
+**최종 업데이트**: 2025-12-18
+
+**프로젝트**: [MobEdu](../README.md) | CPS 2025-2

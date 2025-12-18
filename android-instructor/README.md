@@ -1,39 +1,39 @@
-# MobileGPT
+# MobEdu - 강의자용 Android 앱
 
 [![Android](https://img.shields.io/badge/Android-26+-green.svg)](https://developer.android.com/)
 [![Kotlin](https://img.shields.io/badge/Kotlin-1.9+-purple.svg)](https://kotlinlang.org/)
-[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-**MobileGPT** is an intelligent Android accessibility recording and analysis system that captures user interactions and generates structured learning curricula using AI.
+**MobEdu 강의자 앱**은 강의자가 스마트폰에서 앱 사용법을 녹화하고, AI가 분석하여 학습 과제(Task/Subtask)로 변환하는 시스템입니다.
 
-## 📱 Features
+## 📱 주요 기능
 
-- **Accessibility-basedcl Recording**: Captures UI interactions without requiring screen recording permissions
-- **Real-time Event Streaming**: Sends interaction events to Flask server in real-time
-- **AI-Powered Analysis**: Uses GPT-4 to analyze user sessions and generate step-by-step curricula
-- **Floating Overlay UI**: Non-intrusive recording controls with start/stop functionality
-- **Session Management**: Browse, view, and edit recorded sessions and generated steps
-- **Step Editor**: Modify titles, descriptions, and details of each learning step
+- **AccessibilityService 기반 녹화**: 화면 녹화 권한 없이 UI 이벤트 캡처
+- **실시간 이벤트 전송**: Django 백엔드로 UI 이벤트 배치 전송
+- **AI 분석 (GPT-4o-mini)**: 녹화된 세션을 분석하여 단계별 가이드 자동 생성
+- **플로팅 오버레이 UI**: 녹화 시작/종료 컨트롤
+- **녹화 관리**: 녹화 목록 조회, 분석 상태 확인
+- **단계 편집**: 생성된 Subtask의 제목, 설명, 가이드 텍스트 수정
 
-## 🏗️ Architecture
+## 🏗️ 프로젝트 구조
 
 ```
-mobilegpt/
-├── app/                           # Android application
-│   ├── src/main/java/com/example/mobilegpt/
-│   │   ├── MainActivity.kt        # Main entry point
-│   │   ├── MyAccessibilityService.kt  # Accessibility event capture
-│   │   ├── overlay/               # Floating UI components
-│   │   ├── recording/             # Recording screen
-│   │   ├── session/               # Session list & step list screens
-│   │   ├── stepdetail/            # Step detail editor
-│   │   ├── network/               # API client (Retrofit)
-│   │   └── viewmodel/             # ViewModels
-│   └── mobilegpt-server/          # Flask backend server
-│       ├── server.py              # Main server with API endpoints
-│       ├── sessions/              # Recorded session data (gitignored)
-│       └── curriculum/            # Generated curricula (gitignored)
+android-instructor/
+├── app/src/main/java/com/example/mobilegpt/
+│   ├── MainActivity.kt              # 앱 진입점
+│   ├── MyAccessibilityService.kt    # UI 이벤트 캡처 서비스
+│   ├── overlay/                     # 플로팅 오버레이 UI
+│   ├── recording/                   # 녹화 화면
+│   │   ├── RecordingScreen.kt       # 녹화 시작 화면
+│   │   └── RecordingListScreen.kt   # 녹화 목록 화면
+│   ├── subtask/                     # 단계 관련 화면
+│   │   ├── SubtaskListScreen.kt     # 단계 목록
+│   │   └── SubtaskDetailScreen.kt   # 단계 수정
+│   ├── ui/auth/                     # 로그인 화면
+│   ├── viewmodel/                   # ViewModels
+│   └── data/
+│       ├── remote/api/              # API 서비스
+│       └── remote/dto/              # Request/Response DTO
 ├── build.gradle.kts
 └── settings.gradle.kts
 ```
@@ -241,4 +241,6 @@ If you encounter any issues or have questions:
 
 ---
 
-Made with ❤️ by the MobileGPT Team
+**최종 업데이트**: 2025-12-18
+
+**프로젝트**: [MobEdu](../README.md) | CPS 2025-2
