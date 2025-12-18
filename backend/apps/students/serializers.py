@@ -41,12 +41,25 @@ class SessionJoinSerializer(serializers.Serializer):
 
 
 class SubtaskDetailSerializer(serializers.ModelSerializer):
-    """단계 상세 Serializer"""
+    """단계 상세 Serializer
+
+    UI 비교 기반 진행도 추적을 위해 다음 필드들이 포함됨:
+    - view_id: 클릭할 UI 요소의 viewId
+    - text: UI 요소의 텍스트
+    - content_description: 접근성 설명
+    - target_package: 앱 패키지명
+    - target_class: UI 요소 클래스명
+    """
     task_title = serializers.CharField(source='task.title', read_only=True)
 
     class Meta:
         model = Subtask
-        fields = ['id', 'task', 'task_title', 'title', 'description', 'order', 'target_app', 'target_action']
+        fields = [
+            'id', 'task', 'task_title', 'title', 'description', 'order_index',
+            'target_action', 'guide_text',
+            # UI 비교용 필드 (android-student 앱에서 진행도 추적에 사용)
+            'view_id', 'text', 'content_description', 'target_package', 'target_class'
+        ]
 
 
 class SessionParticipantSerializer(serializers.ModelSerializer):

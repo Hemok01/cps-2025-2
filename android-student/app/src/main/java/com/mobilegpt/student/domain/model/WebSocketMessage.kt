@@ -8,10 +8,13 @@ import com.google.gson.annotations.SerializedName
 
 /**
  * 서버로부터 받는 메시지
+ *
+ * ★ 주의: Gson 역직렬화 시 JSON에 type 필드가 없으면 null이 될 수 있음
+ * Kotlin null safety를 우회하므로 nullable로 선언
  */
 data class SessionMessage(
     @SerializedName("type")
-    val type: String,
+    val type: String?,  // Gson에서 null이 들어올 수 있음
 
     @SerializedName("data")
     val data: Map<String, Any>?

@@ -102,3 +102,111 @@ export interface DifficultStep {
   avgTimeSpent: number; // seconds
   studentCount: number;
 }
+
+// 단계별 분석 타입
+export interface StepAnalysisItem {
+  subtaskId: number;
+  subtaskName: string;
+  taskName: string;
+  orderIndex: number;
+  avgTimeSpent: number; // seconds
+  delayRate: number; // 0-1
+  helpRequestCount: number;
+  studentCount: number;
+  completionRate: number; // 0-1
+  bottleneckScore: number; // 0-1
+}
+
+export interface StepAnalysisData {
+  lectureId: number;
+  lectureName: string;
+  totalSubtasks: number;
+  stepAnalysis: StepAnalysisItem[];
+  summary: {
+    mostDelayedStep: string | null;
+    mostHelpRequestedStep: string | null;
+    avgOverallDelayRate: number;
+  };
+  lastUpdated: string;
+}
+
+// 세션 비교 타입
+export type TrendDirection = 'improving' | 'stable' | 'declining' | 'insufficient_data';
+
+export interface SessionTrendItem {
+  sessionId: number;
+  sessionTitle: string;
+  sessionDate: string | null;
+  startedAt: string | null;
+  endedAt: string | null;
+  participantCount: number;
+  completionRate: number; // 0-1
+  avgCompletionTime: number; // seconds
+  totalHelpRequests: number;
+  helpRequestRate: number;
+}
+
+export interface SessionComparisonData {
+  lectureId: number;
+  lectureName: string;
+  sessions: SessionTrendItem[];
+  trendSummary: {
+    completionRateTrend: TrendDirection;
+    helpRequestTrend: TrendDirection;
+    avgCompletionTimeTrend: TrendDirection;
+  };
+  lastUpdated: string;
+}
+
+// 세션 요약 타입
+export interface SessionSummaryParticipant {
+  id: number;
+  name: string;
+  status: string;
+  completedCount: number;
+  totalSteps: number;
+  progressRate: number;
+  joinedAt: string | null;
+  completedAt: string | null;
+}
+
+export interface SessionSummaryDifficultStep {
+  subtaskId: number;
+  subtaskName: string;
+  helpRequestCount: number;
+}
+
+export interface SessionSummary {
+  sessionId: number;
+  sessionTitle: string;
+  sessionCode: string;
+  lectureId: number | null;
+  lectureName: string | null;
+  status: string;
+
+  // 시간 정보
+  startedAt: string | null;
+  endedAt: string | null;
+  durationSeconds: number;
+
+  // 참가자 통계
+  totalParticipants: number;
+  completedParticipants: number;
+  completionRate: number;
+  avgProgress: number;
+
+  // 단계 정보
+  totalSteps: number;
+  subtaskCompletionStats: Record<number, number>;
+
+  // 도움 요청 통계
+  totalHelpRequests: number;
+  resolvedHelpRequests: number;
+  helpResolutionRate: number;
+
+  // 어려운 단계
+  difficultSteps: SessionSummaryDifficultStep[];
+
+  // 참가자 상세
+  participants: SessionSummaryParticipant[];
+}

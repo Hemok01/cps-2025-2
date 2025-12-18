@@ -2,8 +2,7 @@ import { useState } from 'react';
 import { StudentScreen } from '../../lib/live-session-types';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
-import { Badge } from '../ui/badge';
-import { ChevronLeft, ChevronRight, RefreshCw, Grid2X2, ZoomIn, ZoomOut, Download } from 'lucide-react';
+import { ChevronLeft, ChevronRight, RefreshCw, Grid2X2, ZoomIn, ZoomOut, Download, HelpCircle, ChevronDown, ChevronUp, Hand } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -262,9 +261,6 @@ function StudentScreenRenderer({ screen, zoomLevel, onRefresh, viewMode = VIEW_M
   if (screen.imageUrl) {
     return (
       <div className="relative flex flex-col items-center h-full">
-        <div className="mb-2 flex-shrink-0">
-          <Badge variant="outline" className="mb-1">{screen.studentName}</Badge>
-        </div>
         <div
           className="flex-1 flex items-center justify-center overflow-hidden"
           style={{
@@ -328,39 +324,129 @@ function LoadingScreen() {
 }
 
 function ErrorScreen({ onRefresh }: { onRefresh: () => void }) {
+  const [showHelp, setShowHelp] = useState(false);
+
   return (
-    <div className="text-center p-8 rounded-lg" style={{ backgroundColor: '#FFEBEE', maxWidth: '500px' }}>
-      <div className="text-6xl mb-4">📱</div>
-      <h3 className="text-xl mb-2" style={{ color: 'var(--error)' }}>
-        화면을 불러올 수 없습니다
+    <div className="text-center p-8 rounded-2xl" style={{ backgroundColor: '#FFF8E1', maxWidth: '420px', border: '1px solid #FFE082' }}>
+      {/* 메인 아이콘 */}
+      <div
+        className="w-20 h-20 mx-auto mb-4 rounded-full flex items-center justify-center"
+        style={{ backgroundColor: '#FFF3E0' }}
+      >
+        <Hand className="w-10 h-10" style={{ color: '#F57C00' }} />
+      </div>
+
+      {/* 주요 메시지 */}
+      <h3 className="text-xl font-semibold mb-2" style={{ color: '#E65100' }}>
+        도움 요청을 기다리고 있습니다
       </h3>
-      <ul className="text-left space-y-2 mt-4 mb-4" style={{ color: 'var(--text-secondary)' }}>
-        <li>• 학생이 비활성 상태일 수 있습니다</li>
-        <li>• AccessibilityService가 꺼져있을 수 있습니다</li>
-      </ul>
-      <Button onClick={onRefresh} variant="outline">
-        다시 시도
+      <p className="mb-4" style={{ color: 'var(--text-secondary)' }}>
+        학생이 <strong>도움 요청</strong> 버튼을 누르면<br />
+        실시간 화면을 확인할 수 있습니다.
+      </p>
+
+      {/* 새로고침 버튼 */}
+      <Button onClick={onRefresh} variant="outline" className="mb-4 gap-2">
+        <RefreshCw className="w-4 h-4" />
+        다시 확인
       </Button>
+
+      {/* 접을 수 있는 추가 도움말 */}
+      <div className="mt-4 pt-4" style={{ borderTop: '1px solid #FFE082' }}>
+        <button
+          onClick={() => setShowHelp(!showHelp)}
+          className="flex items-center justify-center gap-2 mx-auto text-sm transition-colors hover:opacity-80"
+          style={{ color: 'var(--text-secondary)' }}
+        >
+          <HelpCircle className="w-4 h-4" />
+          화면이 계속 안 보이나요?
+          {showHelp ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        </button>
+
+        {showHelp && (
+          <div
+            className="mt-3 p-4 rounded-lg text-left text-sm"
+            style={{ backgroundColor: 'rgba(255,255,255,0.7)' }}
+          >
+            <p className="font-medium mb-2" style={{ color: 'var(--text-primary)' }}>
+              다음 사항을 확인해주세요:
+            </p>
+            <ul className="space-y-2" style={{ color: 'var(--text-secondary)' }}>
+              <li className="flex items-start gap-2">
+                <span className="text-orange-500">•</span>
+                학생 앱이 실행 중인지 확인
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-orange-500">•</span>
+                학생의 접근성 서비스(Accessibility Service)가 활성화되어 있는지 확인
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-orange-500">•</span>
+                학생의 네트워크 연결 상태 확인
+              </li>
+            </ul>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
 function NoDataScreen({ maxWidth }: { maxWidth: string }) {
+  const [showHelp, setShowHelp] = useState(false);
+
   return (
     <div
-      className="flex items-center justify-center rounded-2xl"
+      className="flex items-center justify-center rounded-2xl p-6"
       style={{
-        border: '2px solid var(--border)',
-        backgroundColor: 'var(--muted)',
+        border: '2px dashed #90CAF9',
+        backgroundColor: '#E3F2FD',
         maxWidth,
         aspectRatio: '9/16',
         width: '100%',
       }}
     >
-      <div className="text-center" style={{ color: 'var(--text-secondary)' }}>
-        <div className="text-6xl mb-4">📱</div>
-        <p className="text-xl">화면 데이터 없음</p>
-        <p className="text-sm mt-2">학생이 아직 화면을 전송하지 않았습니다</p>
+      <div className="text-center">
+        {/* 애니메이션 아이콘 영역 */}
+        <div
+          className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center"
+          style={{ backgroundColor: '#BBDEFB' }}
+        >
+          <Hand className="w-8 h-8 animate-pulse" style={{ color: '#1976D2' }} />
+        </div>
+
+        {/* 주요 메시지 */}
+        <p className="text-lg font-medium mb-1" style={{ color: '#1565C0' }}>
+          도움 요청 대기 중
+        </p>
+        <p className="text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>
+          학생이 도움 요청을 하면<br />
+          화면이 여기에 표시됩니다
+        </p>
+
+        {/* 접을 수 있는 도움말 */}
+        <button
+          onClick={() => setShowHelp(!showHelp)}
+          className="flex items-center justify-center gap-1 mx-auto text-xs transition-colors hover:opacity-80"
+          style={{ color: 'var(--text-secondary)' }}
+        >
+          <HelpCircle className="w-3 h-3" />
+          도움말
+          {showHelp ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+        </button>
+
+        {showHelp && (
+          <div
+            className="mt-3 p-3 rounded-lg text-left text-xs"
+            style={{ backgroundColor: 'rgba(255,255,255,0.8)' }}
+          >
+            <ul className="space-y-1" style={{ color: 'var(--text-secondary)' }}>
+              <li>• 학생이 앱에서 도움 요청 버튼을 눌러야 합니다</li>
+              <li>• 접근성 서비스가 활성화되어 있어야 합니다</li>
+              <li>• 네트워크 연결을 확인해주세요</li>
+            </ul>
+          </div>
+        )}
       </div>
     </div>
   );

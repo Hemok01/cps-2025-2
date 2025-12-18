@@ -5,16 +5,15 @@ import { Lecture } from '../lib/lecture-types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
-import { 
-  BookOpen, 
-  Plus, 
-  Users, 
-  Play, 
-  Edit, 
+import {
+  BookOpen,
+  Plus,
+  Users,
+  Play,
+  Edit,
   Trash2,
   ToggleLeft,
   ToggleRight,
-  Clock,
   TrendingUp
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -236,15 +235,15 @@ export function LecturesPage() {
                   </div>
                   <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                     <Play className="w-4 h-4" />
-                    <span>세션 {lecture.sessionCount}개</span>
+                    <span>세션 {lecture.sessionCount}회</span>
                   </div>
                   <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
-                    <Clock className="w-4 h-4" />
-                    <span>{lecture.duration}분</span>
+                    <BookOpen className="w-4 h-4" />
+                    <span>과제 {lecture.taskCount}개</span>
                   </div>
                   <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                     <TrendingUp className="w-4 h-4" />
-                    <span>{lecture.steps?.length || 0}개 단계</span>
+                    <span>단계 {lecture.stepCount}개</span>
                   </div>
                 </div>
 

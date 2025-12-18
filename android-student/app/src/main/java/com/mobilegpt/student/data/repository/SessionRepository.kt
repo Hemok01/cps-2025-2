@@ -1,15 +1,19 @@
 package com.mobilegpt.student.data.repository
 
+import android.util.Log
 import com.mobilegpt.student.data.api.ActivityLogRequest
 import com.mobilegpt.student.data.api.ActivityLogResponse
 import com.mobilegpt.student.data.api.JoinSessionRequest
 import com.mobilegpt.student.data.api.JoinSessionResponse
+import com.mobilegpt.student.data.api.NextSubtaskInfo
 import com.mobilegpt.student.data.api.ReportCompletionRequest
 import com.mobilegpt.student.data.api.StudentApi
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import com.mobilegpt.student.data.local.SessionPreferences
 import com.mobilegpt.student.data.local.TokenPreferences
+import com.mobilegpt.student.domain.model.SubtaskDetail
 import com.mobilegpt.student.data.websocket.WebSocketConnectionState
 import com.mobilegpt.student.data.websocket.WebSocketManager
 import com.mobilegpt.student.domain.model.ActivityLog
@@ -30,8 +34,12 @@ import javax.inject.Singleton
 class SessionRepository @Inject constructor(
     private val studentApi: StudentApi,
     private val webSocketManager: WebSocketManager,
-    private val tokenPreferences: TokenPreferences
+    private val tokenPreferences: TokenPreferences,
+    private val sessionPreferences: SessionPreferences
 ) {
+    companion object {
+        private const val TAG = "SessionRepository"
+    }
 
     /**
      * 세션 참가 (익명)
@@ -273,6 +281,15 @@ class SessionRepository @Inject constructor(
             if (response.isSuccessful && response.body() != null) {
                 val body = response.body()!!
                 if (body.success) {
+                    // ★ 다음 단계 정보가 있으면 SharedPreferences에 저장
+                    body.next_subtask?.let { nextSubtask ->
+                        val subtaskDetail = nextSubtask.toSubtaskDetail()
+                        sessionPreferences.saveCurrentSubtaskDetail(subtaskDetail)
+                        Log.d(TAG, "Auto-advanced to next step: id=${nextSubtask.id}, title=${nextSubtask.title}")
+                    } ?: run {
+                        // 다음 단계가 없으면 모든 단계 완료
+                        Log.d(TAG, "All steps completed! No next_subtask in response.")
+                    }
                     Result.success(true)
                 } else {
                     Result.failure(Exception(body.message))
@@ -283,5 +300,23 @@ class SessionRepository @Inject constructor(
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    /**
+     * NextSubtaskInfo를 SubtaskDetail로 변환
+     */
+    private fun NextSubtaskInfo.toSubtaskDetail(): SubtaskDetail {
+        return SubtaskDetail(
+            id = this.id,
+            title = this.title,
+            description = this.description,
+            orderIndex = this.order_index,
+            targetAction = this.target_action,
+            guideText = this.guide_text,
+            viewId = this.view_id,
+            text = this.text,
+            contentDescription = this.content_description,
+            targetPackage = this.target_package
+        )
     }
 }

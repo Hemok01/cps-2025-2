@@ -117,5 +117,23 @@ data class ReportCompletionRequest(
 data class ReportCompletionResponse(
     val success: Boolean,
     val message: String,
-    val completed_subtasks: List<Int>? = null  // 전체 완료된 단계 목록
+    val completed_subtasks: List<Int>? = null,  // 전체 완료된 단계 목록
+    val next_subtask: NextSubtaskInfo? = null   // 다음 단계 정보 (자동 진행용)
+)
+
+/**
+ * 다음 단계 정보 (서버에서 자동 진행을 위해 반환)
+ */
+data class NextSubtaskInfo(
+    val id: Int,
+    val title: String,
+    val description: String? = null,
+    val order_index: Int? = null,
+    val target_action: String? = null,
+    val guide_text: String? = null,
+    // UI 매칭용 필드
+    val view_id: String? = null,
+    val text: String? = null,
+    val content_description: String? = null,
+    val target_package: String? = null
 )

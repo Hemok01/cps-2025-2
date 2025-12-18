@@ -10,6 +10,7 @@ import { SessionControlPage } from './pages/session-control-page';
 import { StatisticsPage } from './pages/statistics-page';
 import { LiveSessionPage } from './pages/live-session-page';
 import { JoinSessionPage } from './pages/join-session-page';
+import { SessionSummaryPage } from './pages/session-summary-page';
 import { Toaster } from './components/ui/sonner';
 
 export default function App() {
@@ -100,6 +101,15 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <LiveSessionPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/sessions/:sessionId/summary"
+            element={
+              <ProtectedRoute>
+                <SessionSummaryPage />
               </ProtectedRoute>
             }
           />

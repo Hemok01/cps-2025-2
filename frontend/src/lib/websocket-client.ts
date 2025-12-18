@@ -25,6 +25,21 @@ class WebSocketClient {
   private statusCallbacks: Set<(info: WebSocketConnectionInfo) => void> = new Set();
 
   connect(sessionCode: string) {
+    // 이미 동일한 세션에 연결되어 있으면 재연결하지 않음
+    if (this.ws && this.sessionCode === sessionCode && this.ws.readyState === WebSocket.OPEN) {
+      console.log('[WebSocket] Already connected to session:', sessionCode);
+      return;
+    }
+
+    // 기존 연결이 있으면 먼저 정리
+    if (this.ws) {
+      console.log('[WebSocket] Closing existing connection before reconnecting');
+      this.isIntentionallyClosed = true; // 재연결 방지
+      this.ws.close();
+      this.ws = null;
+      this.stopHeartbeat();
+    }
+
     this.sessionCode = sessionCode;
     this.isIntentionallyClosed = false;
 

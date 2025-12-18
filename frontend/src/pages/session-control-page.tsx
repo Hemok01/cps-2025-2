@@ -45,6 +45,7 @@ import {
   ChevronRight,
   QrCode,
   Download,
+  BarChart3,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -801,6 +802,28 @@ function ActiveSessionCard({
               >
                 <Monitor className="w-4 h-4" />
                 실시간 화면 진입
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Session Summary Link (for ENDED sessions) */}
+        {session.status === "ENDED" && (
+          <Alert style={{ backgroundColor: "#E3F2FD", borderLeft: "4px solid var(--primary)" }}>
+            <AlertDescription className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <BarChart3 className="w-5 h-5" style={{ color: "var(--primary)" }} />
+                <span>수업 결과를 확인하세요</span>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate(`/sessions/${session.id}/summary`)}
+                className="gap-2"
+                style={{ borderColor: "var(--primary)", color: "var(--primary)" }}
+              >
+                <BarChart3 className="w-4 h-4" />
+                수업 요약 보기
               </Button>
             </AlertDescription>
           </Alert>

@@ -9,6 +9,11 @@ from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
 )
+from drf_spectacular.views import (
+    SpectacularAPIView,
+    SpectacularSwaggerView,
+    SpectacularRedocView,
+)
 from core.views import assetlinks, serve_media_with_cors
 
 urlpatterns = [
@@ -18,6 +23,11 @@ urlpatterns = [
     # Android App Links verification
     path('.well-known/assetlinks.json', assetlinks, name='assetlinks'),
 
+    # API Documentation (Swagger/OpenAPI)
+    path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
+    path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
+    path('api/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
+
     # Health Check (no authentication required)
     path('api/health/', include('apps.health.urls')),
 
@@ -25,6 +35,7 @@ urlpatterns = [
     path('api/auth/', include('apps.accounts.urls')),
     path('api/lectures/', include('apps.lectures.urls')),
     path('api/sessions/', include('apps.sessions.urls')),
+    path('api/recordings/', include('apps.sessions.recording_urls')),  # 녹화 API 분리
     path('api/tasks/', include('apps.tasks.urls')),
     path('api/progress/', include('apps.progress.urls')),
     path('api/logs/', include('apps.logs.urls')),

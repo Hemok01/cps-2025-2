@@ -8,7 +8,7 @@ from rest_framework import serializers
 from .models import LectureSession, SessionParticipant, SessionStepControl, RecordingSession, RecordingStep, StudentScreenshot
 from apps.lectures.serializers import LectureSerializer
 from apps.accounts.serializers import UserSerializer
-from apps.tasks.serializers import SubtaskSerializer
+from apps.tasks.serializers import SubtaskSerializer, TaskSerializer
 
 
 class Base64ImageField(serializers.ImageField):
@@ -83,7 +83,7 @@ class SessionParticipantSerializer(serializers.ModelSerializer):
             'id', 'session', 'user', 'device_id', 'display_name',
             'name', 'is_active', 'status', 'current_subtask',
             'joined_at', 'last_active_at', 'completed_at',
-            'has_pending_help_request'
+            'has_pending_help_request', 'completed_subtasks'
         ]
         read_only_fields = ['id', 'joined_at', 'last_active_at']
 
@@ -132,16 +132,36 @@ class SessionStepControlSerializer(serializers.ModelSerializer):
 class RecordingSessionSerializer(serializers.ModelSerializer):
     """녹화 세션 상세 조회 serializer"""
     instructor = UserSerializer(read_only=True)
-    lecture = LectureSerializer(read_only=True)
+    task = serializers.SerializerMethodField()
+    lecture = serializers.SerializerMethodField()
 
     class Meta:
         model = RecordingSession
         fields = [
             'id', 'instructor', 'title', 'description', 'status',
             'event_count', 'duration_seconds', 'started_at', 'ended_at',
-            'lecture', 'created_at', 'updated_at'
+            'task', 'lecture', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'instructor', 'event_count', 'created_at', 'updated_at']
+
+    def get_task(self, obj):
+        """변환된 과제 정보 반환 (간략히)"""
+        if obj.task:
+            return {
+                'id': obj.task.id,
+                'title': obj.task.title,
+                'subtask_count': obj.task.subtasks.count()
+            }
+        return None
+
+    def get_lecture(self, obj):
+        """연결된 강의 정보 반환 (간략히)"""
+        if obj.lecture:
+            return {
+                'id': obj.lecture.id,
+                'title': obj.lecture.title
+            }
+        return None
 
 
 class RecordingSessionCreateSerializer(serializers.ModelSerializer):
@@ -159,15 +179,62 @@ class RecordingSessionCreateSerializer(serializers.ModelSerializer):
 class RecordingSessionListSerializer(serializers.ModelSerializer):
     """녹화 세션 목록 조회 serializer"""
     instructor_name = serializers.CharField(source='instructor.name', read_only=True)
+    task = serializers.SerializerMethodField()
 
     class Meta:
         model = RecordingSession
         fields = [
             'id', 'title', 'instructor_name', 'status',
             'event_count', 'duration_seconds', 'started_at', 'ended_at',
-            'created_at'
+            'task', 'created_at'
         ]
         read_only_fields = fields
+
+    def get_task(self, obj):
+        """변환된 과제 정보 반환 (간략히)"""
+        if obj.task:
+            return {
+                'id': obj.task.id,
+                'title': obj.task.title
+            }
+        return None
+
+
+class RecordingSessionAnalysisSerializer(serializers.ModelSerializer):
+    """분석 결과를 포함한 녹화 세션 시리얼라이저"""
+    step_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = RecordingSession
+        fields = [
+            'id', 'title', 'status',
+            'analysis_result', 'analyzed_at', 'analysis_error',
+            'step_count', 'event_count', 'created_at'
+        ]
+        read_only_fields = fields
+
+    def get_step_count(self, obj):
+        """분석된 단계 수 반환"""
+        if obj.analysis_result and isinstance(obj.analysis_result, list):
+            return len(obj.analysis_result)
+        return 0
+
+
+class RecordingConvertSerializer(serializers.Serializer):
+    """녹화 → 과제 변환 요청 시리얼라이저"""
+    title = serializers.CharField(max_length=255, help_text='생성할 과제 제목')
+    description = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        default='',
+        help_text='과제 설명 (선택)'
+    )
+    lecture_id = serializers.IntegerField(
+        required=False,
+        allow_null=True,
+        default=None,
+        help_text='연결할 강의 ID (선택)'
+    )
 
 
 # ==================== Screenshot Serializers ====================

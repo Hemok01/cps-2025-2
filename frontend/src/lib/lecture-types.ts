@@ -42,13 +42,15 @@ export interface Lecture {
   description: string;
   studentCount: number;
   sessionCount: number;
+  taskCount: number;        // 과제 수 (백엔드에서 계산)
+  stepCount: number;        // 총 단계 수 = 모든 Task의 Subtask 합계
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
   instructor: string;
   difficulty: 'beginner' | 'intermediate' | 'advanced';
   duration: number; // in minutes
-  steps: LectureStep[]; // lecture steps
+  steps: LectureStep[]; // lecture steps (상세 조회 시에만 로드)
   recordingId?: string; // ID of the phone recording used to generate this lecture
 }
 
@@ -92,4 +94,39 @@ export interface RecordingProcessResponse {
     totalDuration: number; // in seconds
     eventTypes: { type: string; count: number }[];
   };
+}
+
+// Backend Subtask structure (from Task conversion)
+export interface BackendSubtask {
+  id: number;
+  task: number;
+  title: string;
+  description: string;
+  order_index: number;
+  target_action: string;
+  target_element_hint: string;
+  guide_text: string;
+  voice_guide_text: string;
+  time: number | null;
+  text: string;
+  content_description: string;
+  view_id: string;
+  bounds: string;
+  target_package: string;
+  target_class: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// Available Task (not linked to any Lecture yet)
+export interface AvailableTask {
+  id: number;
+  lecture: number | null;
+  title: string;
+  description: string;
+  order_index: number;
+  subtasks: BackendSubtask[];
+  subtask_count: number;
+  created_at: string;
+  updated_at: string;
 }

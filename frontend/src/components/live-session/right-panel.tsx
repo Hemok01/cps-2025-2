@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { GroupProgress, LiveNotification } from '../../lib/live-session-types';
-import { Card, CardContent } from '../ui/card';
+import { LiveNotification, SubtaskInfo, StudentListItem } from '../../lib/live-session-types';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { ScrollArea } from '../ui/scroll-area';
 import { Input } from '../ui/input';
+import { Progress } from '../ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-import { CheckCircle, HelpCircle, AlertTriangle, Info, Send, Brain, TrendingUp, TrendingDown, Lightbulb } from 'lucide-react';
+import { CheckCircle, HelpCircle, AlertTriangle, Info, Send, Monitor } from 'lucide-react';
+import { SubtaskProgress } from './subtask-progress';
 
 // Constants
 const NOTIFICATION_STYLES = {
@@ -36,37 +37,19 @@ const NOTIFICATION_STYLES = {
   },
 } as const;
 
-const AI_INSIGHTS = [
-  {
-    type: 'warning',
-    icon: TrendingDown,
-    title: '진행 지연 예측',
-    message: '50대 그룹이 평균보다 25% 느린 속도로 진행 중입니다.',
-    action: '개별 지원이 필요할 수 있습니다.',
-  },
-  {
-    type: 'tip',
-    icon: Lightbulb,
-    title: '추천 액션',
-    message: '\'앱 설치하기\' 단계에서 많은 학생이 어려움을 겪고 있습니다.',
-    action: '단계별 시연을 추천합니다.',
-  },
-  {
-    type: 'success',
-    icon: TrendingUp,
-    title: '긍정적 진행',
-    message: '전체 학생의 75%가 예상 진도를 초과했습니다.',
-    action: '계속 진행하세요!',
-  },
-] as const;
-
 const MAX_VISIBLE_AVATARS = 4;
 
 interface RightPanelProps {
   participants: { id: number; name: string; avatarUrl?: string; isOnline: boolean }[];
-  groupProgress: GroupProgress[];
   notifications: LiveNotification[];
   onResolveNotification: (notificationId: number) => void;
+  onViewScreen?: (notification: LiveNotification) => void;
+  // Progress tracking props
+  subtasks: SubtaskInfo[];
+  currentSubtaskIndex: number;
+  students: StudentListItem[];
+  selectedStudentId: number | null;
+  totalSubtasks: number;
 }
 
 interface ChatMessage {
@@ -78,9 +61,14 @@ interface ChatMessage {
 
 export function RightPanel({
   participants,
-  groupProgress,
   notifications,
   onResolveNotification,
+  onViewScreen,
+  subtasks,
+  currentSubtaskIndex,
+  students,
+  selectedStudentId,
+  totalSubtasks,
 }: RightPanelProps) {
   const [chatMessage, setChatMessage] = useState('');
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
@@ -108,9 +96,9 @@ export function RightPanel({
 
   return (
     <div className="h-full flex flex-col" style={{ width: '340px', backgroundColor: 'white', borderLeft: '1px solid var(--border)' }}>
-      {/* Tabs Header - Fixed */}
-      <div className="p-4 pb-3 border-b" style={{ borderColor: 'var(--border)' }}>
-        <Tabs defaultValue="notifications" className="w-full">
+      <Tabs defaultValue="notifications" className="h-full flex flex-col">
+        {/* Tabs Header - Fixed */}
+        <div className="p-4 pb-3 border-b" style={{ borderColor: 'var(--border)' }}>
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="notifications" className="text-xs">
               알림
@@ -120,32 +108,39 @@ export function RightPanel({
                 </Badge>
               )}
             </TabsTrigger>
-            <TabsTrigger value="ai" className="text-xs">
-              AI분석
+            <TabsTrigger value="progress" className="text-xs">
+              진행현황
             </TabsTrigger>
             <TabsTrigger value="chat" className="text-xs">
               채팅
             </TabsTrigger>
           </TabsList>
-        </Tabs>
-      </div>
+        </div>
 
-      {/* Participants Summary - Fixed */}
-      <ParticipantsSummary participants={participants} />
+        {/* Participants Summary - Fixed */}
+        <ParticipantsSummary participants={participants} />
 
-      {/* Tab Contents - Scrollable */}
-      <Tabs defaultValue="notifications" className="flex-1 flex flex-col overflow-hidden">
-        <NotificationsTab
-          notifications={notifications}
-          onResolve={onResolveNotification}
-        />
-        <AIInsightsTab groupProgress={groupProgress} />
-        <ChatTab
-          messages={chatMessages}
-          currentMessage={chatMessage}
-          onMessageChange={setChatMessage}
-          onSendMessage={handleSendMessage}
-        />
+        {/* Tab Contents - Scrollable */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <NotificationsTab
+            notifications={notifications}
+            onResolve={onResolveNotification}
+            onViewScreen={onViewScreen}
+          />
+          <ProgressTab
+            subtasks={subtasks}
+            currentSubtaskIndex={currentSubtaskIndex}
+            students={students}
+            selectedStudentId={selectedStudentId}
+            totalSubtasks={totalSubtasks}
+          />
+          <ChatTab
+            messages={chatMessages}
+            currentMessage={chatMessage}
+            onMessageChange={setChatMessage}
+            onSendMessage={handleSendMessage}
+          />
+        </div>
       </Tabs>
     </div>
   );
@@ -224,9 +219,10 @@ function AvatarWithStatus({ isOnline, marginLeft, zIndex }: AvatarWithStatusProp
 interface NotificationsTabProps {
   notifications: LiveNotification[];
   onResolve: (id: number) => void;
+  onViewScreen?: (notification: LiveNotification) => void;
 }
 
-function NotificationsTab({ notifications, onResolve }: NotificationsTabProps) {
+function NotificationsTab({ notifications, onResolve, onViewScreen }: NotificationsTabProps) {
   return (
     <TabsContent value="notifications" className="flex-1 m-0 overflow-hidden">
       <ScrollArea className="h-full">
@@ -239,6 +235,7 @@ function NotificationsTab({ notifications, onResolve }: NotificationsTabProps) {
                 key={notification.id}
                 notification={notification}
                 onResolve={onResolve}
+                onViewScreen={onViewScreen}
               />
             ))
           )}
@@ -260,11 +257,13 @@ function EmptyNotifications() {
 interface NotificationCardProps {
   notification: LiveNotification;
   onResolve: (id: number) => void;
+  onViewScreen?: (notification: LiveNotification) => void;
 }
 
-function NotificationCard({ notification, onResolve }: NotificationCardProps) {
+function NotificationCard({ notification, onResolve, onViewScreen }: NotificationCardProps) {
   const style = NOTIFICATION_STYLES[notification.type as keyof typeof NOTIFICATION_STYLES] || NOTIFICATION_STYLES.default;
   const Icon = style.icon;
+  const isHelpRequest = notification.type === 'help_request';
 
   return (
     <div
@@ -295,162 +294,59 @@ function NotificationCard({ notification, onResolve }: NotificationCardProps) {
         <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
           {getRelativeTime(notification.timestamp)}
         </span>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => onResolve(notification.id)}
-          className="h-7 text-xs"
-        >
-          확인
-        </Button>
+        <div className="flex items-center gap-2">
+          {isHelpRequest && onViewScreen && (
+            <Button
+              size="sm"
+              variant="default"
+              onClick={() => onViewScreen(notification)}
+              className="h-7 text-xs gap-1"
+              style={{ backgroundColor: 'var(--primary)' }}
+            >
+              <Monitor className="w-3 h-3" />
+              화면 보기
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => onResolve(notification.id)}
+            className="h-7 text-xs"
+          >
+            확인
+          </Button>
+        </div>
       </div>
     </div>
   );
 }
 
-interface AIInsightsTabProps {
-  groupProgress: GroupProgress[];
+// Progress Tab - 단계 진행 현황
+interface ProgressTabProps {
+  subtasks: SubtaskInfo[];
+  currentSubtaskIndex: number;
+  students: StudentListItem[];
+  selectedStudentId: number | null;
+  totalSubtasks: number;
 }
 
-function AIInsightsTab({ groupProgress }: AIInsightsTabProps) {
+function ProgressTab({
+  subtasks,
+  currentSubtaskIndex,
+  students,
+  selectedStudentId,
+  totalSubtasks,
+}: ProgressTabProps) {
   return (
-    <TabsContent value="ai" className="flex-1 m-0 overflow-hidden">
-      <ScrollArea className="h-full">
-        <div className="space-y-4 p-4">
-          <AIHeader />
-          {AI_INSIGHTS.map((insight, index) => (
-            <AIInsightCard key={index} insight={insight} />
-          ))}
-          <GroupProgressSection groupProgress={groupProgress} />
-        </div>
-      </ScrollArea>
+    <TabsContent value="progress" className="flex-1 m-0 overflow-hidden flex flex-col">
+      <SubtaskProgress
+        subtasks={subtasks}
+        currentSubtaskIndex={currentSubtaskIndex}
+        students={students}
+        selectedStudentId={selectedStudentId}
+        totalSubtasks={totalSubtasks}
+      />
     </TabsContent>
-  );
-}
-
-function AIHeader() {
-  return (
-    <Card style={{ borderRadius: 'var(--radius-md)', backgroundColor: '#F0F7FF' }}>
-      <CardContent className="p-3">
-        <div className="flex items-center gap-2 mb-2">
-          <Brain className="w-5 h-5" style={{ color: 'var(--primary)' }} />
-          <h3 className="text-sm" style={{ fontWeight: 'var(--font-weight-semibold)' }}>
-            AI 실시간 분석
-          </h3>
-        </div>
-        <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-          MobileGPT AI가 학습 패턴을 실시간으로 분석하여 인사이트를 제공합니다.
-        </p>
-      </CardContent>
-    </Card>
-  );
-}
-
-interface AIInsightCardProps {
-  insight: typeof AI_INSIGHTS[number];
-}
-
-function AIInsightCard({ insight }: AIInsightCardProps) {
-  const Icon = insight.icon;
-  const bgColor = insight.type === 'warning' ? '#FFF3E0' 
-    : insight.type === 'success' ? '#E8F5E9' 
-    : '#F5F5F5';
-  const iconColor = insight.type === 'warning' ? 'var(--warning)' 
-    : insight.type === 'success' ? 'var(--success)' 
-    : 'var(--primary)';
-
-  return (
-    <Card style={{ borderRadius: 'var(--radius-md)', backgroundColor: bgColor }}>
-      <CardContent className="p-3">
-        <div className="flex items-start gap-2 mb-2">
-          <Icon className="w-4 h-4 mt-0.5" style={{ color: iconColor }} />
-          <div className="flex-1">
-            <h4 className="text-sm mb-1" style={{ fontWeight: 'var(--font-weight-semibold)' }}>
-              {insight.title}
-            </h4>
-            <p className="text-xs mb-2" style={{ color: 'var(--text-secondary)' }}>
-              {insight.message}
-            </p>
-            <div className="flex items-center gap-1">
-              <Lightbulb className="w-3 h-3" style={{ color: iconColor }} />
-              <p className="text-xs" style={{ color: iconColor, fontWeight: 'var(--font-weight-semibold)' }}>
-                {insight.action}
-              </p>
-            </div>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-interface GroupProgressSectionProps {
-  groupProgress: GroupProgress[];
-}
-
-function GroupProgressSection({ groupProgress }: GroupProgressSectionProps) {
-  return (
-    <div className="space-y-2">
-      <h3 className="text-sm" style={{ color: 'var(--text-secondary)' }}>그룹별 학습 내용</h3>
-      {groupProgress.map((group) => (
-        <GroupProgressCard key={group.groupId} group={group} />
-      ))}
-    </div>
-  );
-}
-
-interface GroupProgressCardProps {
-  group: GroupProgress;
-}
-
-function GroupProgressCard({ group }: GroupProgressCardProps) {
-  const visibleParticipants = group.participants.slice(0, 3);
-  const remainingCount = Math.max(0, group.participants.length - 3);
-
-  return (
-    <Card style={{ borderRadius: 'var(--radius-md)' }}>
-      <CardContent className="p-3">
-        <div className="mb-2">
-          <h4 className="text-sm" style={{ fontWeight: 'var(--font-weight-semibold)' }}>
-            {group.groupName}
-          </h4>
-          <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
-            {group.currentTask}
-          </p>
-        </div>
-        <div className="flex items-center">
-          {visibleParticipants.map((participant, index) => (
-            <div
-              key={participant.id}
-              className="relative rounded-full border-2 border-white"
-              style={{
-                width: '32px',
-                height: '32px',
-                marginLeft: index > 0 ? '-8px' : '0',
-                backgroundColor: 'var(--muted)',
-                zIndex: 3 - index,
-              }}
-            >
-              <div className="w-full h-full flex items-center justify-center text-sm">👤</div>
-            </div>
-          ))}
-          {remainingCount > 0 && (
-            <div
-              className="flex items-center justify-center rounded-full border-2 border-white text-xs"
-              style={{
-                width: '32px',
-                height: '32px',
-                marginLeft: '-8px',
-                backgroundColor: 'var(--muted)',
-                color: 'var(--text-secondary)',
-              }}
-            >
-              +{remainingCount}
-            </div>
-          )}
-        </div>
-      </CardContent>
-    </Card>
   );
 }
 

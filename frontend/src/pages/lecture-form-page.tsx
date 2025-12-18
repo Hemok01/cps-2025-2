@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { lectureService } from '../lib/lecture-service';
-import { LectureStep } from '../lib/lecture-types';
+import { LectureStep, AvailableTask } from '../lib/lecture-types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -14,10 +14,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../components/ui/select';
-import { 
-  ArrowLeft, 
-  Save, 
-  Smartphone, 
+import {
+  ArrowLeft,
+  Save,
+  Smartphone,
   Loader2,
   Play,
   Plus,
@@ -29,7 +29,9 @@ import {
   RefreshCw,
   BookOpen,
   Clock,
-  Activity
+  Activity,
+  ListChecks,
+  FileVideo
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '../components/ui/badge';
@@ -48,7 +50,15 @@ export function LectureFormPage() {
   const [difficulty, setDifficulty] = useState<'beginner' | 'intermediate' | 'advanced'>('beginner');
   const [duration, setDuration] = useState(60);
   
-  // Recording data
+  // Content source tab (Task or Recording)
+  const [contentSourceTab, setContentSourceTab] = useState<'task' | 'recording'>('task');
+
+  // Task data (for Task-based lecture creation)
+  const [availableTasks, setAvailableTasks] = useState<AvailableTask[]>([]);
+  const [selectedTaskIds, setSelectedTaskIds] = useState<number[]>([]);
+  const [loadingTasks, setLoadingTasks] = useState(false);
+
+  // Recording data (for Recording-based lecture creation)
   const [recordings, setRecordings] = useState<{ id: string; name: string; createdAt: string; actionCount: number; duration: number; primaryApp: string; apps: string[]; deviceInfo?: { model?: string; androidVersion?: string } }[]>([]);
   const [selectedRecordingId, setSelectedRecordingId] = useState<string>('');
   const [loadingRecordings, setLoadingRecordings] = useState(false);
@@ -107,6 +117,58 @@ export function LectureFormPage() {
     } finally {
       setLoadingRecordings(false);
     }
+  };
+
+  // Load available tasks (not linked to any lecture)
+  const loadAvailableTasks = async () => {
+    setLoadingTasks(true);
+    try {
+      const data = await lectureService.getAvailableTasks();
+      setAvailableTasks(data);
+    } catch (error) {
+      toast.error('사용 가능한 과제 목록을 불러오는데 실패했습니다');
+    } finally {
+      setLoadingTasks(false);
+    }
+  };
+
+  // Toggle task selection
+  const handleTaskToggle = (taskId: number) => {
+    setSelectedTaskIds(prev =>
+      prev.includes(taskId)
+        ? prev.filter(id => id !== taskId)
+        : [...prev, taskId]
+    );
+  };
+
+  // Load steps from selected tasks
+  const handleLoadSelectedTaskSteps = () => {
+    if (selectedTaskIds.length === 0) {
+      toast.error('최소 1개 이상의 과제를 선택해주세요');
+      return;
+    }
+
+    const allSteps: LectureStep[] = [];
+    let order = 1;
+
+    for (const taskId of selectedTaskIds) {
+      const task = availableTasks.find(t => t.id === taskId);
+      if (task && task.subtasks) {
+        const steps = lectureService.convertSubtasksToSteps(task.subtasks);
+        steps.forEach(step => {
+          allSteps.push({ ...step, order: order++ });
+        });
+      }
+    }
+
+    if (allSteps.length === 0) {
+      toast.error('선택된 과제에 단계가 없습니다');
+      return;
+    }
+
+    setLectureSteps(allSteps);
+    toast.success(`${allSteps.length}개의 단계가 로드되었습니다`);
+    setCurrentStep(3);
   };
 
   const handleProcessRecording = async () => {
@@ -223,7 +285,8 @@ export function LectureFormPage() {
         });
         toast.success('강의가 수정되었습니다');
       } else {
-        await lectureService.createLecture(lectureData);
+        // Task가 선택된 경우 함께 연결
+        await lectureService.createLectureWithTasks(lectureData, selectedTaskIds);
         toast.success('강의가 추가되었습니다');
       }
       navigate('/lectures');
@@ -237,7 +300,7 @@ export function LectureFormPage() {
   const renderStepIndicator = () => {
     const steps = [
       { num: 1, label: '기본 정보' },
-      { num: 2, label: '녹화 선택' },
+      { num: 2, label: '내용 선택' },
       { num: 3, label: '단계 수정' },
       { num: 4, label: '최종 확인' },
     ];
@@ -381,7 +444,8 @@ export function LectureFormPage() {
                 return;
               }
               setCurrentStep(2);
-              loadRecordings();
+              // Load tasks by default (Task tab is default)
+              loadAvailableTasks();
             }}
           >
             다음
@@ -391,109 +455,239 @@ export function LectureFormPage() {
     </Card>
   );
 
-  const renderRecordingSelection = () => (
+  // Task Selection Panel (Tab 1)
+  const renderTaskSelection = () => (
+    <>
+      {loadingTasks ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--primary)' }} />
+        </div>
+      ) : availableTasks.length === 0 ? (
+        <div className="text-center py-12">
+          <ListChecks className="w-16 h-16 mx-auto mb-4 opacity-20" />
+          <h3 className="text-xl mb-2">사용 가능한 과제가 없습니다</h3>
+          <p style={{ color: 'var(--text-secondary)' }}>
+            강의자 앱에서 녹화를 분석하여 과제를 먼저 생성해주세요
+          </p>
+          <Button
+            variant="outline"
+            onClick={loadAvailableTasks}
+            className="mt-4 gap-2"
+          >
+            <RefreshCw className="w-4 h-4" />
+            새로고침
+          </Button>
+        </div>
+      ) : (
+        <>
+          <div className="space-y-3">
+            {availableTasks.map((task) => (
+              <div
+                key={task.id}
+                className={`p-4 border rounded-lg cursor-pointer transition-all ${
+                  selectedTaskIds.includes(task.id)
+                    ? 'border-2'
+                    : 'hover:border-gray-400'
+                }`}
+                style={{
+                  borderColor: selectedTaskIds.includes(task.id) ? 'var(--primary)' : undefined,
+                }}
+                onClick={() => handleTaskToggle(task.id)}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-lg font-medium">{task.title}</h4>
+                  {selectedTaskIds.includes(task.id) && (
+                    <CheckCircle2 className="w-6 h-6" style={{ color: 'var(--primary)' }} />
+                  )}
+                </div>
+
+                {task.description && (
+                  <p className="text-sm mb-2" style={{ color: 'var(--text-secondary)' }}>
+                    {task.description}
+                  </p>
+                )}
+
+                <div className="flex items-center gap-4 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                  <div className="flex items-center gap-1">
+                    <ListChecks className="w-4 h-4" />
+                    <span>{task.subtask_count}개 단계</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Clock className="w-4 h-4" />
+                    <span>{new Date(task.created_at).toLocaleDateString('ko-KR')}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {selectedTaskIds.length > 0 && (
+            <div
+              className="p-4 rounded-lg flex items-start gap-3 mt-4"
+              style={{ backgroundColor: '#E8F5E9' }}
+            >
+              <CheckCircle2 className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: '#4CAF50' }} />
+              <div className="text-sm">
+                <p className="font-medium mb-1">
+                  {selectedTaskIds.length}개의 과제가 선택되었습니다
+                </p>
+                <p style={{ color: 'var(--text-secondary)' }}>
+                  선택한 과제들의 단계가 순서대로 병합되어 강의 단계로 추가됩니다.
+                </p>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </>
+  );
+
+  // Recording Selection Panel (Tab 2)
+  const renderRecordingSelectionPanel = () => (
+    <>
+      {loadingRecordings ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--primary)' }} />
+        </div>
+      ) : recordings.length === 0 ? (
+        <div className="text-center py-12">
+          <Smartphone className="w-16 h-16 mx-auto mb-4 opacity-20" />
+          <h3 className="text-xl mb-2">사용 가능한 녹화가 없습니다</h3>
+          <p style={{ color: 'var(--text-secondary)' }}>
+            핸드폰에서 동작을 녹화하고 서버로 전송해주세요
+          </p>
+          <Button
+            variant="outline"
+            onClick={loadRecordings}
+            className="mt-4 gap-2"
+          >
+            <RefreshCw className="w-4 h-4" />
+            새로고침
+          </Button>
+        </div>
+      ) : (
+        <>
+          <div className="space-y-3">
+            {recordings.map((recording) => {
+              const formatDuration = (seconds: number) => {
+                const mins = Math.floor(seconds / 60);
+                const secs = seconds % 60;
+                return `${mins}:${secs.toString().padStart(2, '0')}`;
+              };
+
+              return (
+                <div
+                  key={recording.id}
+                  className={`p-4 border rounded-lg cursor-pointer transition-all ${
+                    selectedRecordingId === recording.id
+                      ? 'border-2'
+                      : 'hover:border-gray-400'
+                  }`}
+                  style={{
+                    borderColor: selectedRecordingId === recording.id ? 'var(--primary)' : undefined,
+                  }}
+                  onClick={() => setSelectedRecordingId(recording.id)}
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-lg">{recording.name}</h4>
+                    {selectedRecordingId === recording.id && (
+                      <CheckCircle2 className="w-6 h-6" style={{ color: 'var(--primary)' }} />
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3 mb-2">
+                    <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                      <Clock className="w-4 h-4" />
+                      <span>{formatDuration(recording.duration)}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                      <Activity className="w-4 h-4" />
+                      <span>{recording.actionCount}개 동작</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                      <Smartphone className="w-4 h-4" />
+                      <span>{lectureService.getAppName(recording.primaryApp)}</span>
+                    </div>
+                  </div>
+
+                  <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                    {new Date(recording.createdAt).toLocaleString('ko-KR')}
+                    {recording.deviceInfo && ` · ${recording.deviceInfo.model}`}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+
+          {selectedRecordingId && (
+            <div
+              className="p-4 rounded-lg flex items-start gap-3 mt-4"
+              style={{ backgroundColor: '#E3F2FD' }}
+            >
+              <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: 'var(--primary)' }} />
+              <div className="text-sm">
+                <p className="mb-1">
+                  선택한 녹화를 분석하여 자동으로 강의 단계를 생성합니다.
+                </p>
+                <p style={{ color: 'var(--text-secondary)' }}>
+                  생성 후 각 단계를 검토하고 수정할 수 있습니다.
+                </p>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </>
+  );
+
+  // Main Content Source Selection (Step 2 with Tabs)
+  const renderContentSourceSelection = () => (
     <Card style={{ borderRadius: 'var(--radius-lg)' }}>
       <CardHeader>
-        <CardTitle>핸드폰 동작 녹화 선택</CardTitle>
+        <CardTitle>강의 내용 선택</CardTitle>
         <CardDescription>
-          핸드폰에서 녹화된 동작을 선택하여 자동으로 강의 단계를 생성합니다
+          기존 과제를 선택하거나 새로운 녹화에서 강의 단계를 생성합니다
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {loadingRecordings ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--primary)' }} />
-          </div>
-        ) : recordings.length === 0 ? (
-          <div className="text-center py-12">
-            <Smartphone className="w-16 h-16 mx-auto mb-4 opacity-20" />
-            <h3 className="text-xl mb-2">사용 가능한 녹화가 없습니다</h3>
-            <p style={{ color: 'var(--text-secondary)' }}>
-              핸드폰에서 동작을 녹화하고 서버로 전송해주세요
-            </p>
-            <Button
-              variant="outline"
-              onClick={loadRecordings}
-              className="mt-4 gap-2"
-            >
-              <RefreshCw className="w-4 h-4" />
-              새로고침
-            </Button>
-          </div>
-        ) : (
-          <>
-            <div className="space-y-3">
-              {recordings.map((recording) => {
-                const formatDuration = (seconds: number) => {
-                  const mins = Math.floor(seconds / 60);
-                  const secs = seconds % 60;
-                  return `${mins}:${secs.toString().padStart(2, '0')}`;
-                };
+        {/* Tab Buttons */}
+        <div className="flex gap-2 border-b pb-4">
+          <Button
+            variant={contentSourceTab === 'task' ? 'default' : 'outline'}
+            onClick={() => {
+              setContentSourceTab('task');
+              if (availableTasks.length === 0) {
+                loadAvailableTasks();
+              }
+            }}
+            className="gap-2"
+            style={contentSourceTab === 'task' ? { backgroundColor: 'var(--primary)' } : {}}
+          >
+            <ListChecks className="w-4 h-4" />
+            기존 과제 선택
+          </Button>
+          <Button
+            variant={contentSourceTab === 'recording' ? 'default' : 'outline'}
+            onClick={() => {
+              setContentSourceTab('recording');
+              if (recordings.length === 0) {
+                loadRecordings();
+              }
+            }}
+            className="gap-2"
+            style={contentSourceTab === 'recording' ? { backgroundColor: 'var(--primary)' } : {}}
+          >
+            <FileVideo className="w-4 h-4" />
+            녹화에서 생성
+          </Button>
+        </div>
 
-                return (
-                  <div
-                    key={recording.id}
-                    className={`p-4 border rounded-lg cursor-pointer transition-all ${
-                      selectedRecordingId === recording.id
-                        ? 'border-2'
-                        : 'hover:border-gray-400'
-                    }`}
-                    style={{
-                      borderColor: selectedRecordingId === recording.id ? 'var(--primary)' : undefined,
-                    }}
-                    onClick={() => setSelectedRecordingId(recording.id)}
-                  >
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className="text-lg">{recording.name}</h4>
-                      {selectedRecordingId === recording.id && (
-                        <CheckCircle2 className="w-6 h-6" style={{ color: 'var(--primary)' }} />
-                      )}
-                    </div>
-                    
-                    <div className="grid grid-cols-3 gap-3 mb-2">
-                      <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
-                        <Clock className="w-4 h-4" />
-                        <span>{formatDuration(recording.duration)}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
-                        <Activity className="w-4 h-4" />
-                        <span>{recording.actionCount}개 동작</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
-                        <Smartphone className="w-4 h-4" />
-                        <span>{lectureService.getAppName(recording.primaryApp)}</span>
-                      </div>
-                    </div>
-                    
-                    <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                      {new Date(recording.createdAt).toLocaleString('ko-KR')}
-                      {recording.deviceInfo && ` · ${recording.deviceInfo.model}`}
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
+        {/* Tab Content */}
+        {contentSourceTab === 'task' && renderTaskSelection()}
+        {contentSourceTab === 'recording' && renderRecordingSelectionPanel()}
 
-            {selectedRecordingId && (
-              <div
-                className="p-4 rounded-lg flex items-start gap-3"
-                style={{ backgroundColor: '#E3F2FD' }}
-              >
-                <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: 'var(--primary)' }} />
-                <div className="text-sm">
-                  <p className="mb-1">
-                    선택한 녹화를 분석하여 자동으로 강의 단계를 생성합니다.
-                  </p>
-                  <p style={{ color: 'var(--text-secondary)' }}>
-                    생성 후 각 단계를 검토하고 수정할 수 있습니다.
-                  </p>
-                </div>
-              </div>
-            )}
-          </>
-        )}
-
-        <div className="flex gap-3 pt-4">
+        {/* Action Buttons */}
+        <div className="flex gap-3 pt-4 border-t">
           <Button
             type="button"
             variant="outline"
@@ -502,25 +696,40 @@ export function LectureFormPage() {
           >
             이전
           </Button>
-          <Button
-            type="button"
-            className="flex-1 gap-2"
-            style={{ backgroundColor: 'var(--primary)' }}
-            onClick={handleProcessRecording}
-            disabled={!selectedRecordingId || processingRecording}
-          >
-            {processingRecording ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                분석 중...
-              </>
-            ) : (
-              <>
-                <Play className="w-4 h-4" />
-                단계 자동 생성
-              </>
-            )}
-          </Button>
+
+          {contentSourceTab === 'task' ? (
+            <Button
+              type="button"
+              className="flex-1 gap-2"
+              style={{ backgroundColor: 'var(--primary)' }}
+              onClick={handleLoadSelectedTaskSteps}
+              disabled={selectedTaskIds.length === 0}
+            >
+              <ListChecks className="w-4 h-4" />
+              단계 로드
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              className="flex-1 gap-2"
+              style={{ backgroundColor: 'var(--primary)' }}
+              onClick={handleProcessRecording}
+              disabled={!selectedRecordingId || processingRecording}
+            >
+              {processingRecording ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  분석 중...
+                </>
+              ) : (
+                <>
+                  <Play className="w-4 h-4" />
+                  단계 자동 생성
+                </>
+              )}
+            </Button>
+          )}
+
           <Button
             type="button"
             variant="outline"
@@ -854,7 +1063,7 @@ export function LectureFormPage() {
 
       {/* Step Content */}
       {currentStep === 1 && renderBasicInfo()}
-      {currentStep === 2 && renderRecordingSelection()}
+      {currentStep === 2 && renderContentSourceSelection()}
       {currentStep === 3 && renderStepReview()}
       {currentStep === 4 && renderConfirmation()}
     </div>

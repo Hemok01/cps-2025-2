@@ -6,10 +6,9 @@ import { Session } from '../lib/types';
 import {
   LiveSessionData,
   StudentListItem,
-  ProgressData,
-  GroupProgress,
   LiveNotification,
-  StudentScreen
+  StudentScreen,
+  SubtaskInfo
 } from '../lib/live-session-types';
 import { TopControlBar } from '../components/live-session/top-control-bar';
 import { LeftPanel } from '../components/live-session/left-panel';
@@ -40,6 +39,7 @@ const STATUS_CONFIG = {
   IN_PROGRESS: { label: '진행 중', bgColor: 'var(--success)', textColor: 'white' },
   PAUSED: { label: '일시정지', bgColor: 'var(--warning)', textColor: 'white' },
   ENDED: { label: '종료됨', bgColor: 'var(--status-inactive)', textColor: 'white' },
+  REVIEW_MODE: { label: '복습 모드', bgColor: 'var(--info)', textColor: 'white' },
 } as const;
 
 export function LiveSessionPage() {
@@ -48,13 +48,13 @@ export function LiveSessionPage() {
 
   const [sessionData, setSessionData] = useState<LiveSessionData | null>(null);
   const [students, setStudents] = useState<StudentListItem[]>([]);
-  const [progressData, setProgressData] = useState<ProgressData[]>([]);
-  const [groupProgress, setGroupProgress] = useState<GroupProgress[]>([]);
   const [notifications, setNotifications] = useState<LiveNotification[]>([]);
   const [studentScreen, setStudentScreen] = useState<StudentScreen | null>(null);
   const [selectedStudentId, setSelectedStudentId] = useState<number | null>(null);
   // 도움 요청으로 스크린샷이 설정된 경우 API 호출을 스킵하기 위한 ref
   const skipScreenLoadRef = useRef<number | null>(null);
+  // 도움 요청 중복 방지를 위한 ref (user_id -> 마지막 요청 시간)
+  const helpRequestTimestampsRef = useRef<Map<number, number>>(new Map());
   const [loading, setLoading] = useState(true);
   const [activeSessions, setActiveSessions] = useState<Session[]>([]);
   const [wsConnectionInfo, setWsConnectionInfo] = useState<WebSocketConnectionInfo>({
@@ -129,21 +129,44 @@ export function LiveSessionPage() {
     switch (message.type) {
       case 'step_changed':
         // Update session data with new step information
-        setSessionData(prev => prev ? {
-          ...prev,
-          currentStep: message.data.current_step,
-          totalSteps: message.data.total_steps,
-        } : null);
-        toast.info(`단계 변경: ${message.data.current_step}/${message.data.total_steps}`);
+        const stepData = message.data?.subtask || message.data;
+        setSessionData(prev => {
+          if (!prev) return null;
+
+          // 새 현재 단계 찾기
+          const newSubtaskId = stepData.id;
+          const newSubtaskIndex = prev.subtasks.findIndex(s => s.id === newSubtaskId);
+
+          return {
+            ...prev,
+            currentSubtask: {
+              id: newSubtaskId,
+              title: stepData.title,
+              orderIndex: newSubtaskIndex >= 0 ? newSubtaskIndex : prev.currentSubtaskIndex,
+            },
+            currentSubtaskIndex: newSubtaskIndex >= 0 ? newSubtaskIndex : prev.currentSubtaskIndex,
+          };
+        });
+        toast.info(`단계 변경: ${stepData.title || message.data.current_step}`);
         break;
 
       case 'session_status_changed':
         // Update session status
+        const newStatus = message.status?.toUpperCase() || message.data?.status?.toUpperCase() || 'ACTIVE';
         setSessionData(prev => prev ? {
           ...prev,
-          status: message.data.status.toUpperCase() as 'ACTIVE' | 'PAUSED' | 'COMPLETED',
+          status: newStatus as 'CREATED' | 'ACTIVE' | 'IN_PROGRESS' | 'PAUSED' | 'ENDED' | 'REVIEW_MODE',
         } : null);
-        toast.info(`세션 상태: ${message.data.status === 'active' ? '진행 중' : message.data.status === 'paused' ? '일시정지' : '완료'}`);
+
+        // Status changed to REVIEW_MODE or ENDED means session ended
+        if (newStatus === 'REVIEW_MODE' || newStatus === 'ENDED') {
+          toast.success('수업이 종료되었습니다. 요약 페이지로 이동합니다.');
+          setTimeout(() => {
+            navigate(`/sessions/${sessionId}/summary`);
+          }, 1500);
+        } else {
+          toast.info(`세션 상태: ${newStatus === 'ACTIVE' || newStatus === 'IN_PROGRESS' ? '진행 중' : newStatus === 'PAUSED' ? '일시정지' : newStatus}`);
+        }
         break;
 
       case 'participant_joined':
@@ -160,40 +183,20 @@ export function LiveSessionPage() {
         loadStudents();
         break;
 
-      case 'progress_updated':
-        // Update progress data for specific student
-        setProgressData(prev => {
-          const existing = prev.find(p => p.userId === message.data.user_id);
-          if (existing) {
-            return prev.map(p =>
-              p.userId === message.data.user_id
-                ? {
-                    ...p,
-                    currentSubtask: message.data.current_subtask,
-                    progressPercentage: message.data.progress_percentage,
-                    completedSubtasks: message.data.completed_subtasks,
-                  }
-                : p
-            );
-          } else {
-            // Add new progress entry
-            return [
-              ...prev,
-              {
-                userId: message.data.user_id,
-                username: message.data.username,
-                currentSubtask: message.data.current_subtask,
-                progressPercentage: message.data.progress_percentage,
-                completedSubtasks: message.data.completed_subtasks,
-              },
-            ];
-          }
-        });
-        break;
-
       case 'help_requested':
         // Update student status to help_needed
         const helpData = message.data;
+
+        // 중복 방지: 동일한 user_id에서 5초 이내 요청이 있었으면 무시
+        const now = Date.now();
+        const lastHelpTime = helpRequestTimestampsRef.current.get(helpData.user_id);
+        if (lastHelpTime && now - lastHelpTime < 5000) {
+          console.log('[LiveSession] Skipping duplicate help request (within 5s):', helpData.user_id);
+          break;
+        }
+        // 마지막 요청 시간 기록
+        helpRequestTimestampsRef.current.set(helpData.user_id, now);
+
         setStudents(prev => prev.map(student => {
           if (student.id === helpData.user_id) {
             return {
@@ -218,46 +221,8 @@ export function LiveSessionPage() {
           isResolved: false,
           screenshotUrl: helpData.screenshot_url, // 스크린샷 URL 추가
         };
-        // 중복 알림 방지: 동일한 user_id + 비슷한 시간(5초 이내)의 알림이 있으면 추가하지 않음
-        setNotifications(prev => {
-          const recentDuplicate = prev.find(n =>
-            n.studentId === helpData.user_id &&
-            n.type === 'help_request' &&
-            Math.abs(new Date(n.timestamp).getTime() - Date.now()) < 5000
-          );
-          if (recentDuplicate) {
-            console.log('[LiveSession] Skipping duplicate help request notification');
-            return prev;
-          }
-          return [newNotification, ...prev];
-        });
 
-        // 도움 요청 학생으로 자동 이동 및 스크린샷 표시
-        if (helpData.user_id) {
-          let fullImageUrl: string | undefined;
-
-          // 스크린샷이 있으면 URL 변환
-          if (helpData.screenshot_url) {
-            const backendUrl = import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:8000';
-            fullImageUrl = helpData.screenshot_url.startsWith('http')
-              ? helpData.screenshot_url
-              : `${backendUrl}${helpData.screenshot_url}`;
-          }
-
-          // API 호출 스킵 플래그 설정 (useEffect보다 먼저 실행)
-          skipScreenLoadRef.current = helpData.user_id;
-
-          setStudentScreen({
-            studentId: helpData.user_id,
-            studentName: helpData.username,
-            imageUrl: fullImageUrl,
-            lastUpdated: helpData.timestamp || new Date().toISOString(),
-            isLoading: false,
-            error: fullImageUrl ? undefined : '스크린샷이 전송되지 않았습니다',
-          });
-          setSelectedStudentId(helpData.user_id);
-        }
-
+        setNotifications(prev => [newNotification, ...prev]);
         toast.warning(`🆘 도움 요청: ${helpData.username}${helpData.screenshot_url ? ' (스크린샷 포함)' : ''}`);
         break;
 
@@ -326,7 +291,7 @@ export function LiveSessionPage() {
       default:
         console.warn('[LiveSession] Unknown message type:', message.type);
     }
-  }, [loadStudents, selectedStudentId]);
+  }, [loadStudents, selectedStudentId, navigate, sessionId]);
 
   // Setup WebSocket connection after initial data is loaded
   useEffect(() => {
@@ -380,21 +345,17 @@ export function LiveSessionPage() {
 
   const loadInitialData = async () => {
     if (!sessionId) return;
-    
+
     setLoading(true);
     try {
-      const [session, studentList, progress, groups, notifs] = await Promise.all([
+      const [session, studentList, notifs] = await Promise.all([
         liveSessionService.getSessionData(parseInt(sessionId)),
         liveSessionService.getStudentList(parseInt(sessionId)),
-        liveSessionService.getProgressData(parseInt(sessionId)),
-        liveSessionService.getGroupProgress(parseInt(sessionId)),
         liveSessionService.getNotifications(parseInt(sessionId)),
       ]);
 
       setSessionData(session);
       setStudents(studentList);
-      setProgressData(progress);
-      setGroupProgress(groups);
       setNotifications(notifs);
 
       // Auto-select first student
@@ -415,10 +376,14 @@ export function LiveSessionPage() {
     // 현재 화면 상태 저장 (API 호출 전)
     const currentScreen = studentScreen;
 
+    // students 배열에서 학생 이름 찾기
+    const student = students.find(s => s.id === studentId);
+    const studentName = student?.name || '';
+
     try {
       setStudentScreen(prev => prev ? { ...prev, isLoading: true } : {
         studentId,
-        studentName: '',
+        studentName,
         imageUrl: undefined,
         lastUpdated: new Date().toISOString(),
         isLoading: true,
@@ -455,7 +420,7 @@ export function LiveSessionPage() {
         error: '화면을 불러올 수 없습니다',
       } : {
         studentId,
-        studentName: '',
+        studentName,
         imageUrl: undefined,
         lastUpdated: new Date().toISOString(),
         isLoading: false,
@@ -545,14 +510,27 @@ export function LiveSessionPage() {
   };
 
   const handleNextStep = async () => {
-    if (!sessionId) return;
+    if (!sessionId || !sessionData) return;
+
+    // 다음 단계 계산
+    const nextIndex = sessionData.currentSubtaskIndex + 1;
+    if (nextIndex >= sessionData.subtasks.length) {
+      toast.info('마지막 단계입니다');
+      return;
+    }
+
+    const nextSubtask = sessionData.subtasks[nextIndex];
+    if (!nextSubtask) {
+      toast.error('다음 단계를 찾을 수 없습니다');
+      return;
+    }
 
     try {
-      await liveSessionService.nextStep(parseInt(sessionId));
+      await liveSessionService.nextStep(parseInt(sessionId), nextSubtask.id);
       // 세션 데이터 새로고침
       const updated = await liveSessionService.getSessionData(parseInt(sessionId));
       setSessionData(updated);
-      toast.success('다음 단계로 진행되었습니다');
+      toast.success(`${nextSubtask.title} 단계로 진행되었습니다`);
     } catch (error) {
       toast.error('다음 단계 진행에 실패했습니다');
     }
@@ -580,12 +558,12 @@ export function LiveSessionPage() {
 
     try {
       await liveSessionService.endSession(parseInt(sessionId));
-      toast.success('수업이 종료되었습니다');
+      toast.success('수업이 종료되었습니다. 요약 페이지로 이동합니다.');
 
-      // 세션 목록으로 이동
+      // 세션 요약 페이지로 이동
       setTimeout(() => {
-        navigate('/sessions');
-      }, 1500);
+        navigate(`/sessions/${sessionId}/summary`);
+      }, 1000);
     } catch (error) {
       toast.error('수업 종료에 실패했습니다');
     }
@@ -653,6 +631,44 @@ export function LiveSessionPage() {
   const handleTakeSnapshot = () => {
     // TODO: Implement snapshot functionality
     toast.success('전체 학생 화면 스냅샷을 저장했습니다');
+  };
+
+  const handleViewScreen = (notification: LiveNotification) => {
+    if (!notification.studentId) {
+      toast.error('학생 정보를 찾을 수 없습니다');
+      return;
+    }
+
+    let fullImageUrl: string | undefined;
+
+    // 스크린샷이 있으면 URL 변환
+    if (notification.screenshotUrl) {
+      const backendUrl = import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:8000';
+      fullImageUrl = notification.screenshotUrl.startsWith('http')
+        ? notification.screenshotUrl
+        : `${backendUrl}${notification.screenshotUrl}`;
+    }
+
+    // API 호출 스킵 플래그 설정 (useEffect보다 먼저 실행)
+    skipScreenLoadRef.current = notification.studentId;
+
+    setStudentScreen({
+      studentId: notification.studentId,
+      studentName: notification.studentName || '',
+      imageUrl: fullImageUrl,
+      lastUpdated: notification.timestamp || new Date().toISOString(),
+      isLoading: false,
+      error: fullImageUrl ? undefined : '스크린샷이 전송되지 않았습니다',
+    });
+    setSelectedStudentId(notification.studentId);
+
+    // 학생 선택 상태 업데이트
+    setStudents(prev => prev.map(s => ({
+      ...s,
+      isSelected: s.id === notification.studentId,
+    })));
+
+    toast.info(`${notification.studentName}님의 화면을 확인합니다`);
   };
 
   // Loading state
@@ -791,8 +807,8 @@ export function LiveSessionPage() {
         startedAt={sessionData.startedAt}
         lectures={sessionData.lectures}
         activeLectureId={sessionData.activeLectureId}
-        currentStep={3}
-        totalSteps={10}
+        currentStep={sessionData.currentSubtaskIndex + 1}
+        totalSteps={sessionData.totalSubtasks}
         activeStudents={activeStudents}
         totalStudents={students.length}
         helpRequestCount={helpRequestCount}
@@ -808,10 +824,10 @@ export function LiveSessionPage() {
       />
 
       {/* Main Content - 3 Column Layout */}
-      <div 
+      <div
         className="flex-1 flex overflow-hidden"
-        style={{ 
-          paddingTop: sessionData.status === 'ACTIVE' || sessionData.status === 'PAUSED' ? '112px' : '64px' 
+        style={{
+          paddingTop: ['ACTIVE', 'IN_PROGRESS', 'PAUSED', 'REVIEW_MODE'].includes(sessionData.status) ? '112px' : '64px'
         }}
       >
         {/* Left Panel */}
@@ -821,7 +837,6 @@ export function LiveSessionPage() {
           instructor={sessionData.instructor}
           totalStudents={sessionData.totalStudents}
           students={students}
-          progressData={progressData}
           selectedStudentId={selectedStudentId}
           onStudentSelect={handleStudentSelect}
         />
@@ -839,9 +854,14 @@ export function LiveSessionPage() {
         {/* Right Panel */}
         <RightPanel
           participants={participants}
-          groupProgress={groupProgress}
           notifications={notifications}
           onResolveNotification={handleResolveNotification}
+          onViewScreen={handleViewScreen}
+          subtasks={sessionData.subtasks}
+          currentSubtaskIndex={sessionData.currentSubtaskIndex}
+          students={students}
+          selectedStudentId={selectedStudentId}
+          totalSubtasks={sessionData.totalSubtasks}
         />
       </div>
 

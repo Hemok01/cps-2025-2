@@ -2,45 +2,53 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { apiService } from '../lib/api-service';
 import { Lecture, LectureStatistics } from '../lib/types';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Card, CardContent } from '../components/ui/card';
 import { Label } from '../components/ui/label';
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
 } from '../components/ui/select';
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  Legend, 
-  ResponsiveContainer,
-  Cell
-} from 'recharts';
-import { Users, HelpCircle, TrendingUp, CheckCircle } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import { OverviewTab, StepAnalysisTab, SessionComparisonTab } from '../components/statistics';
+import { BarChart3, AlertTriangle, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
+
+type TabValue = 'overview' | 'step-analysis' | 'session-comparison';
 
 export function StatisticsPage() {
   const [searchParams] = useSearchParams();
   const preselectedLectureId = searchParams.get('lectureId');
 
+  // 공통 상태
   const [lectures, setLectures] = useState<Lecture[]>([]);
   const [selectedLectureId, setSelectedLectureId] = useState<string>(preselectedLectureId || '');
-  const [statistics, setStatistics] = useState<LectureStatistics | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabValue>('overview');
 
+  // 탭별 데이터 (Lazy Loading)
+  const [overviewData, setOverviewData] = useState<LectureStatistics | null>(null);
+  // TODO: Phase 3, 5에서 추가될 타입
+  // const [stepAnalysisData, setStepAnalysisData] = useState<StepAnalysisData | null>(null);
+  // const [sessionComparisonData, setSessionComparisonData] = useState<SessionComparisonData | null>(null);
+
+  // 탭별 로딩 상태
+  const [loadingStates, setLoadingStates] = useState({
+    overview: false,
+    stepAnalysis: false,
+    sessionComparison: false,
+  });
+
+  // 강의 목록 로드
   useEffect(() => {
     loadLectures();
   }, []);
 
+  // 강의 선택 시 현재 탭 데이터 로드
   useEffect(() => {
     if (selectedLectureId) {
-      loadStatistics();
+      loadCurrentTabData();
     }
   }, [selectedLectureId]);
 
@@ -56,52 +64,88 @@ export function StatisticsPage() {
     }
   };
 
-  const loadStatistics = async () => {
+  const loadCurrentTabData = async () => {
     if (!selectedLectureId) return;
-    
-    setLoading(true);
-    try {
-      const data = await apiService.getLectureStatistics(parseInt(selectedLectureId));
-      setStatistics(data);
-    } catch (error) {
-      toast.error('통계를 불러오는데 실패했습니다');
-    } finally {
-      setLoading(false);
+
+    switch (activeTab) {
+      case 'overview':
+        await loadOverviewData();
+        break;
+      case 'step-analysis':
+        // TODO: Phase 3에서 구현
+        break;
+      case 'session-comparison':
+        // TODO: Phase 5에서 구현
+        break;
     }
   };
 
-  const getBarColor = (value: number, maxValue: number) => {
-    const percentage = (value / maxValue) * 100;
-    if (percentage >= 75) return '#EF4444'; // red
-    if (percentage >= 50) return '#F59E0B'; // orange
-    if (percentage >= 25) return '#FCD34D'; // yellow
-    return '#10B981'; // green
+  const loadOverviewData = async () => {
+    if (!selectedLectureId) return;
+
+    setLoadingStates(prev => ({ ...prev, overview: true }));
+    try {
+      const data = await apiService.getLectureStatistics(parseInt(selectedLectureId));
+      setOverviewData(data);
+    } catch (error: any) {
+      if (error?.response?.status === 403) {
+        toast.error('이 강의의 통계를 조회할 권한이 없습니다');
+      } else {
+        toast.error('통계를 불러오는데 실패했습니다');
+      }
+      setOverviewData(null);
+    } finally {
+      setLoadingStates(prev => ({ ...prev, overview: false }));
+    }
   };
 
-  if (loading && !statistics) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4">통계 로딩 중...</p>
-        </div>
-      </div>
-    );
-  }
+  // 탭 변경 핸들러
+  const handleTabChange = async (value: string) => {
+    const tabValue = value as TabValue;
+    setActiveTab(tabValue);
+
+    if (!selectedLectureId) return;
+
+    // Lazy Loading: 해당 탭 데이터가 없으면 로드
+    switch (tabValue) {
+      case 'overview':
+        if (!overviewData) {
+          await loadOverviewData();
+        }
+        break;
+      case 'step-analysis':
+        // TODO: Phase 3에서 구현
+        break;
+      case 'session-comparison':
+        // TODO: Phase 5에서 구현
+        break;
+    }
+  };
+
+  // 강의 변경 핸들러
+  const handleLectureChange = (lectureId: string) => {
+    setSelectedLectureId(lectureId);
+    // 모든 탭 데이터 초기화
+    setOverviewData(null);
+    // TODO: 다른 탭 데이터도 초기화
+    // setStepAnalysisData(null);
+    // setSessionComparisonData(null);
+  };
 
   return (
     <div className="space-y-6 max-w-7xl">
+      {/* 페이지 헤더 */}
       <div>
         <h1 className="text-3xl mb-2">통계 및 분석</h1>
-        <p className="text-gray-600">강의별 통계 데이터와 어려운 단계를 확인하세요</p>
+        <p className="text-gray-600">강의별 통계 데이터와 개선 인사이트를 확인하세요</p>
       </div>
 
-      {/* Lecture Selection */}
+      {/* 강의 선택 */}
       <Card>
         <CardContent className="pt-6">
           <div className="space-y-2">
             <Label htmlFor="lecture">강의 선택</Label>
-            <Select value={selectedLectureId} onValueChange={setSelectedLectureId}>
+            <Select value={selectedLectureId} onValueChange={handleLectureChange}>
               <SelectTrigger id="lecture">
                 <SelectValue placeholder="강의를 선택하세요" />
               </SelectTrigger>
@@ -117,175 +161,45 @@ export function StatisticsPage() {
         </CardContent>
       </Card>
 
-      {statistics && (
-        <>
-          {/* Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">총 학생 수</p>
-                    <p className="text-3xl">{statistics.totalStudents}명</p>
-                  </div>
-                  <div className="p-3 bg-blue-100 rounded-full">
-                    <Users className="w-6 h-6 text-blue-600" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+      {/* 탭 구조 */}
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="overview" className="flex items-center gap-2">
+            <BarChart3 className="w-4 h-4" />
+            <span>개요</span>
+          </TabsTrigger>
+          <TabsTrigger value="step-analysis" className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4" />
+            <span>단계별 분석</span>
+          </TabsTrigger>
+          <TabsTrigger value="session-comparison" className="flex items-center gap-2">
+            <TrendingUp className="w-4 h-4" />
+            <span>세션 비교</span>
+          </TabsTrigger>
+        </TabsList>
 
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">총 도움 요청</p>
-                    <p className="text-3xl">{statistics.totalHelpRequests}회</p>
-                  </div>
-                  <div className="p-3 bg-red-100 rounded-full">
-                    <HelpCircle className="w-6 h-6 text-red-600" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+        <TabsContent value="overview" className="mt-6">
+          <OverviewTab
+            statistics={overviewData}
+            loading={loadingStates.overview}
+            lectureId={selectedLectureId ? parseInt(selectedLectureId) : null}
+          />
+        </TabsContent>
 
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">평균 진행률</p>
-                    <p className="text-3xl">{statistics.averageProgress}%</p>
-                  </div>
-                  <div className="p-3 bg-green-100 rounded-full">
-                    <TrendingUp className="w-6 h-6 text-green-600" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+        <TabsContent value="step-analysis" className="mt-6">
+          <StepAnalysisTab
+            lectureId={selectedLectureId ? parseInt(selectedLectureId) : null}
+            loading={loadingStates.stepAnalysis}
+          />
+        </TabsContent>
 
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">완료율</p>
-                    <p className="text-3xl">{statistics.completionRate}%</p>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {Math.round((statistics.completionRate / 100) * statistics.totalStudents)}/
-                      {statistics.totalStudents}
-                    </p>
-                  </div>
-                  <div className="p-3 bg-yellow-100 rounded-full">
-                    <CheckCircle className="w-6 h-6 text-yellow-600" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Difficult Steps Chart */}
-          <Card>
-            <CardHeader>
-              <CardTitle>어려운 단계 분석</CardTitle>
-              <p className="text-sm text-gray-600">
-                도움 요청이 많은 단계일수록 빨간색으로 표시됩니다
-              </p>
-            </CardHeader>
-            <CardContent>
-              {statistics.difficultSteps.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <p>데이터가 충분하지 않습니다</p>
-                </div>
-              ) : (
-                <ResponsiveContainer width="100%" height={400}>
-                  <BarChart data={statistics.difficultSteps}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis 
-                      dataKey="subtaskName" 
-                      angle={-45}
-                      textAnchor="end"
-                      height={120}
-                      interval={0}
-                      tick={{ fontSize: 12 }}
-                    />
-                    <YAxis 
-                      label={{ value: '도움 요청 횟수', angle: -90, position: 'insideLeft' }}
-                    />
-                    <Tooltip 
-                      content={({ active, payload }) => {
-                        if (active && payload && payload.length) {
-                          const data = payload[0].payload;
-                          return (
-                            <div className="bg-white p-3 border rounded shadow-lg">
-                              <p className="mb-2">{data.subtaskName}</p>
-                              <p className="text-sm">
-                                <span className="text-gray-600">도움 요청:</span>{' '}
-                                <span>{data.helpRequestCount}회</span>
-                              </p>
-                              <p className="text-sm">
-                                <span className="text-gray-600">평균 소요 시간:</span>{' '}
-                                <span>{Math.round(data.avgTimeSpent / 60)}분</span>
-                              </p>
-                              <p className="text-sm">
-                                <span className="text-gray-600">학생 수:</span>{' '}
-                                <span>{data.studentCount}명</span>
-                              </p>
-                            </div>
-                          );
-                        }
-                        return null;
-                      }}
-                    />
-                    <Bar dataKey="helpRequestCount" radius={[8, 8, 0, 0]}>
-                      {statistics.difficultSteps.map((entry, index) => {
-                        const maxCount = Math.max(...statistics.difficultSteps.map(s => s.helpRequestCount));
-                        const color = getBarColor(entry.helpRequestCount, maxCount);
-                        return <Cell key={`cell-${index}`} fill={color} />;
-                      })}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Detailed Table */}
-          <Card>
-            <CardHeader>
-              <CardTitle>상세 데이터</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="text-left p-3">단계명</th>
-                      <th className="text-right p-3">도움 요청</th>
-                      <th className="text-right p-3">평균 소요 시간</th>
-                      <th className="text-right p-3">학생 수</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {statistics.difficultSteps.map((step, index) => (
-                      <tr key={index} className="border-b hover:bg-gray-50">
-                        <td className="p-3">{step.subtaskName}</td>
-                        <td className="text-right p-3">{step.helpRequestCount}회</td>
-                        <td className="text-right p-3">
-                          {Math.round(step.avgTimeSpent / 60)}분
-                        </td>
-                        <td className="text-right p-3">{step.studentCount}명</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              
-              <div className="mt-4 text-sm text-gray-500">
-                마지막 업데이트: {new Date(statistics.lastUpdated).toLocaleString('ko-KR')}
-              </div>
-            </CardContent>
-          </Card>
-        </>
-      )}
+        <TabsContent value="session-comparison" className="mt-6">
+          <SessionComparisonTab
+            lectureId={selectedLectureId ? parseInt(selectedLectureId) : null}
+            loading={loadingStates.sessionComparison}
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

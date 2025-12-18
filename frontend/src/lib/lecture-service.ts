@@ -4,176 +4,11 @@ import {
   UpdateLectureRequest,
   RecordingProcessResponse,
   RecordingMetadata,
-  LectureStep
+  LectureStep,
+  AvailableTask,
+  BackendSubtask
 } from './lecture-types';
 import apiClient from './api-client';
-
-// Mock data for development
-const mockLectures: Lecture[] = [
-  {
-    id: 1,
-    title: '유튜브 영상 검색하고 좋아요 누르기',
-    description: '유튜브에서 원하는 영상을 검색하고 좋아요를 누르는 방법을 배웁니다',
-    studentCount: 12,
-    sessionCount: 3,
-    isActive: true,
-    createdAt: '2024-01-15T09:00:00Z',
-    updatedAt: '2024-01-20T14:30:00Z',
-    instructor: '김강사',
-    difficulty: 'beginner',
-    duration: 30,
-    steps: [
-      {
-        id: 'step-1',
-        order: 1,
-        title: '홈 화면에서 유튜브 앱 찾기',
-        description: '스마트폰 홈 화면에서 유튜브 앱 아이콘을 찾습니다',
-        action: '빨간색 재생 버튼이 있는 유튜브 아이콘을 터치하세요',
-        expectedResult: '유튜브 앱이 실행되고 메인 화면이 나타납니다',
-        tips: '유튜브 아이콘은 빨간색 배경에 흰색 재생 버튼입니다',
-        technicalDetails: {
-          targetPackage: 'com.google.android.youtube',
-          targetViewId: 'com.google.android.apps.nexuslauncher:id/icon',
-          targetText: 'YouTube',
-        }
-      },
-      {
-        id: 'step-2',
-        order: 2,
-        title: '검색 버튼 누르기',
-        description: '유튜브 상단의 돋보기 모양 검색 아이콘을 찾습니다',
-        action: '화면 상단의 돋보기 아이콘을 터치하세요',
-        expectedResult: '검색창이 활성화되고 키보드가 나타납니다',
-        technicalDetails: {
-          targetPackage: 'com.google.android.youtube',
-          targetViewId: 'com.google.android.youtube:id/menu_item_1',
-          contentDescription: '검색',
-        }
-      },
-      {
-        id: 'step-3',
-        order: 3,
-        title: '검색어 입력하기',
-        description: '원하는 영상의 제목이나 키워드를 입력합니다',
-        action: '키보드로 검색어를 입력하고 검색 버튼을 누르세요',
-        expectedResult: '검색 결과 목록이 화면에 표시됩니다',
-        tips: '천천히 한 글자씩 입력하세요',
-        technicalDetails: {
-          targetPackage: 'com.google.android.youtube',
-          targetViewId: 'com.google.android.youtube:id/search_edit_text',
-          targetText: '검색어',
-        }
-      },
-      {
-        id: 'step-4',
-        order: 4,
-        title: '원하는 영상 선택하기',
-        description: '검색 결과에서 보고 싶은 영상을 선택합니다',
-        action: '목록에서 원하는 영상의 썸네일을 터치하세요',
-        expectedResult: '선택한 영상이 재생되기 시작합니다',
-        technicalDetails: {
-          targetPackage: 'com.google.android.youtube',
-          targetViewId: 'com.google.android.youtube:id/thumbnail',
-        }
-      },
-      {
-        id: 'step-5',
-        order: 5,
-        title: '좋아요 버튼 누르기',
-        description: '영상 하단의 좋아요 버튼을 찾아 누릅니다',
-        action: '엄지손가락 모양의 좋아요 버튼을 터치하세요',
-        expectedResult: '좋아요 버튼이 파란색으로 변하고 숫자가 증가합니다',
-        tips: '싫어요 버튼과 혼동하지 않도록 주의하세요',
-        technicalDetails: {
-          targetPackage: 'com.google.android.youtube',
-          targetViewId: 'com.google.android.youtube:id/like_button',
-          contentDescription: '좋아요',
-        }
-      }
-    ],
-    recordingId: 'rec-001',
-  },
-  {
-    id: 2,
-    title: '카카오톡으로 사진 전송하기',
-    description: '갤러리에서 사진을 선택하여 카카오톡으로 전송하는 방법을 배웁니다',
-    studentCount: 8,
-    sessionCount: 2,
-    isActive: true,
-    createdAt: '2024-01-18T10:00:00Z',
-    updatedAt: '2024-01-19T16:45:00Z',
-    instructor: '김강사',
-    difficulty: 'intermediate',
-    duration: 45,
-    steps: [
-      {
-        id: 'step-1',
-        order: 1,
-        title: '카카오톡 앱 실행하기',
-        description: '홈 화면에서 카카오톡 앱을 찾아 실행합니다',
-        action: '노란색 말풍선 아이콘의 카카오톡을 터치하세요',
-        expectedResult: '카카오톡이 실행되고 채팅 목록이 나타납니다',
-        technicalDetails: {
-          targetPackage: 'com.kakao.talk',
-          targetText: '카카오톡',
-        }
-      },
-      {
-        id: 'step-2',
-        order: 2,
-        title: '대화방 선택하기',
-        description: '사진을 보낼 대화 상대를 선택합니다',
-        action: '채팅 목록에서 대화방을 터치하세요',
-        expectedResult: '선택한 대화방이 열립니다',
-        technicalDetails: {
-          targetPackage: 'com.kakao.talk',
-          targetViewId: 'com.kakao.talk:id/chat_item',
-        }
-      },
-      {
-        id: 'step-3',
-        order: 3,
-        title: '사진 첨부 버튼 누르기',
-        description: '메시지 입력창 옆의 + 버튼을 누릅니다',
-        action: '메시지 입력창 왼쪽의 + 버튼을 터치하세요',
-        expectedResult: '여러 옵션 메뉴가 나타납니다',
-        technicalDetails: {
-          targetPackage: 'com.kakao.talk',
-          targetViewId: 'com.kakao.talk:id/media_send_button',
-          contentDescription: '미디어 전송',
-        }
-      },
-      {
-        id: 'step-4',
-        order: 4,
-        title: '앨범 선택하기',
-        description: '옵션 메뉴에서 앨범을 선택합니다',
-        action: '앨범 아이콘을 터치하세요',
-        expectedResult: '갤러리가 열리고 사진 목록이 표시됩니다',
-        technicalDetails: {
-          targetPackage: 'com.kakao.talk',
-          targetViewId: 'com.kakao.talk:id/album',
-          targetText: '앨범',
-        }
-      },
-      {
-        id: 'step-5',
-        order: 5,
-        title: '사진 선택 및 전송',
-        description: '보낼 사진을 선택하고 전송합니다',
-        action: '원하는 사진을 선택하고 전송 버튼을 누르세요',
-        expectedResult: '선택한 사진이 대화방에 전송됩니다',
-        tips: '여러 장을 선택하려면 사진을 길게 누른 후 추가로 선택하세요',
-        technicalDetails: {
-          targetPackage: 'com.kakao.talk',
-          targetViewId: 'com.kakao.talk:id/send',
-          targetText: '전송',
-        }
-      }
-    ],
-    recordingId: 'rec-002',
-  },
-];
 
 function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -203,8 +38,10 @@ export const lectureService = {
         id: lecture.id,
         title: lecture.title,
         description: lecture.description || '',
-        studentCount: lecture.student_count || lecture.enrolled_count || 0,
+        studentCount: lecture.enrolled_count || lecture.student_count || 0,
         sessionCount: lecture.session_count || 0,
+        taskCount: lecture.task_count || 0,
+        stepCount: lecture.subtask_count || 0,
         isActive: lecture.is_active !== undefined ? lecture.is_active : true,
         createdAt: lecture.created_at,
         updatedAt: lecture.updated_at,
@@ -228,8 +65,10 @@ export const lectureService = {
         id: lecture.id,
         title: lecture.title,
         description: lecture.description || '',
-        studentCount: lecture.student_count || 0,
+        studentCount: lecture.enrolled_count || lecture.student_count || 0,
         sessionCount: lecture.session_count || 0,
+        taskCount: lecture.task_count || 0,
+        stepCount: lecture.subtask_count || 0,
         isActive: lecture.is_active !== undefined ? lecture.is_active : true,
         createdAt: lecture.created_at,
         updatedAt: lecture.updated_at,
@@ -263,8 +102,10 @@ export const lectureService = {
         id: lecture.id,
         title: lecture.title,
         description: lecture.description || '',
-        studentCount: lecture.student_count || 0,
+        studentCount: lecture.enrolled_count || lecture.student_count || 0,
         sessionCount: lecture.session_count || 0,
+        taskCount: lecture.task_count || 0,
+        stepCount: lecture.subtask_count || 0,
         isActive: lecture.is_active !== undefined ? lecture.is_active : true,
         createdAt: lecture.created_at,
         updatedAt: lecture.updated_at,
@@ -296,8 +137,10 @@ export const lectureService = {
         id: lecture.id,
         title: lecture.title,
         description: lecture.description || '',
-        studentCount: lecture.student_count || 0,
+        studentCount: lecture.enrolled_count || lecture.student_count || 0,
         sessionCount: lecture.session_count || 0,
+        taskCount: lecture.task_count || 0,
+        stepCount: lecture.subtask_count || 0,
         isActive: lecture.is_active !== undefined ? lecture.is_active : true,
         createdAt: lecture.created_at,
         updatedAt: lecture.updated_at,
@@ -339,8 +182,10 @@ export const lectureService = {
         id: lecture.id,
         title: lecture.title,
         description: lecture.description || '',
-        studentCount: lecture.student_count || 0,
+        studentCount: lecture.enrolled_count || lecture.student_count || 0,
         sessionCount: lecture.session_count || 0,
+        taskCount: lecture.task_count || 0,
+        stepCount: lecture.subtask_count || 0,
         isActive: lecture.is_active !== undefined ? lecture.is_active : true,
         createdAt: lecture.created_at,
         updatedAt: lecture.updated_at,
@@ -359,14 +204,23 @@ export const lectureService = {
   // Get available phone recordings from instructor's device
   async getAvailableRecordings(): Promise<RecordingMetadata[]> {
     try {
-      const response = await apiClient.get('/sessions/recordings/');
+      const response = await apiClient.get('/recordings/');
+      // DRF 페이지네이션 응답 처리
+      const data = response.data.results || response.data;
+
+      // 배열인지 확인
+      if (!Array.isArray(data)) {
+        console.warn('Unexpected response format for recordings:', response.data);
+        return [];
+      }
+
       // 백엔드 응답을 프론트엔드 형식으로 변환
-      return response.data.map((rec: any) => ({
-        id: rec.id || rec.recording_id,
-        name: rec.title || rec.name,
+      return data.map((rec: any) => ({
+        id: String(rec.id),
+        name: rec.title || rec.name || '제목 없음',
         createdAt: rec.created_at,
-        actionCount: rec.action_count || rec.event_count || 0,
-        duration: rec.duration || 0,
+        actionCount: rec.event_count || rec.action_count || 0,
+        duration: rec.duration_seconds || rec.duration || 0,
         apps: rec.apps || [],
         primaryApp: rec.primary_app || rec.apps?.[0] || '',
         deviceInfo: rec.device_info || {
@@ -376,62 +230,22 @@ export const lectureService = {
       }));
     } catch (error) {
       console.error('Failed to fetch recordings:', error);
-      // 에러 시 목 데이터 반환 (fallback)
-      return [
-      {
-        id: 'rec-new-001',
-        name: '네이버 지도로 길찾기',
-        createdAt: '2024-11-16T10:30:00Z',
-        actionCount: 28,
-        duration: 145, // seconds
-        apps: ['com.nhn.android.nmap', 'com.android.systemui'],
-        primaryApp: 'com.nhn.android.nmap',
-        deviceInfo: {
-          model: 'Samsung Galaxy A53',
-          androidVersion: '13'
-        }
-      },
-      {
-        id: 'rec-new-002',
-        name: '인스타그램 게시물 작성하기',
-        createdAt: '2024-11-16T09:15:00Z',
-        actionCount: 35,
-        duration: 210,
-        apps: ['com.instagram.android', 'com.android.gallery3d', 'com.android.systemui'],
-        primaryApp: 'com.instagram.android',
-        deviceInfo: {
-          model: 'Samsung Galaxy A53',
-          androidVersion: '13'
-        }
-      },
-      {
-        id: 'rec-new-003',
-        name: '배달의민족 주문하기',
-        createdAt: '2024-11-15T18:45:00Z',
-        actionCount: 42,
-        duration: 320,
-        apps: ['com.sampleapp', 'com.android.systemui'],
-        primaryApp: 'com.sampleapp',
-        deviceInfo: {
-          model: 'Samsung Galaxy A53',
-          androidVersion: '13'
-        }
-      },
-    ];
+      // 에러 시 빈 배열 반환 (UI 크래시 방지)
+      return [];
     }
   },
 
   // Get detailed recording metadata
   async getRecordingDetails(recordingId: string): Promise<RecordingMetadata | null> {
     try {
-      const response = await apiClient.get(`/sessions/recordings/${recordingId}/`);
+      const response = await apiClient.get(`/recordings/${recordingId}/`);
       const rec = response.data;
       return {
-        id: rec.id || rec.recording_id,
-        name: rec.title || rec.name,
+        id: String(rec.id),
+        name: rec.title || rec.name || '제목 없음',
         createdAt: rec.created_at,
-        actionCount: rec.action_count || rec.event_count || 0,
-        duration: rec.duration || 0,
+        actionCount: rec.event_count || rec.action_count || 0,
+        duration: rec.duration_seconds || rec.duration || 0,
         apps: rec.apps || [],
         primaryApp: rec.primary_app || rec.apps?.[0] || '',
         deviceInfo: rec.device_info || {
@@ -444,9 +258,7 @@ export const lectureService = {
         return null;
       }
       console.error('Failed to fetch recording details:', error);
-      // Fallback to mock data
-      const recordings = await this.getAvailableRecordings();
-      return recordings.find(r => r.id === recordingId) || null;
+      return null; // 에러 시 null 반환
     }
   },
 
@@ -689,5 +501,88 @@ export const lectureService = {
       'com.android.systemui': 'Android System UI',
     };
     return appNames[packageName] || packageName;
+  },
+
+  // ============================================
+  // Task-based Lecture Creation APIs
+  // ============================================
+
+  /**
+   * Get available tasks (not linked to any Lecture yet)
+   * These are tasks created from Android app recordings
+   */
+  async getAvailableTasks(): Promise<AvailableTask[]> {
+    try {
+      const response = await apiClient.get('/tasks/available/');
+      // DRF 페이지네이션 응답 처리 (results 필드에 실제 데이터가 있을 수 있음)
+      const data = response.data.results || response.data;
+      // 배열인지 확인
+      if (!Array.isArray(data)) {
+        console.warn('Unexpected response format for available tasks:', response.data);
+        return [];
+      }
+      return data;
+    } catch (error) {
+      console.error('Failed to fetch available tasks:', error);
+      // 에러 시 빈 배열 반환 (UI 크래시 방지)
+      return [];
+    }
+  },
+
+  /**
+   * Convert Backend Subtasks to Frontend LectureSteps
+   * Maps the backend data structure to the frontend format
+   */
+  convertSubtasksToSteps(subtasks: BackendSubtask[]): LectureStep[] {
+    return subtasks.map((subtask, idx) => ({
+      id: `subtask-${subtask.id}`,
+      order: idx + 1,
+      title: subtask.title,
+      description: subtask.description,
+      action: subtask.guide_text || subtask.text || '',
+      expectedResult: subtask.voice_guide_text || '',
+      technicalDetails: {
+        targetPackage: subtask.target_package,
+        targetViewId: subtask.view_id,
+        targetText: subtask.text,
+        contentDescription: subtask.content_description,
+        bounds: subtask.bounds,
+      }
+    }));
+  },
+
+  /**
+   * Attach existing independent Tasks to a Lecture
+   * Used when creating a lecture from existing tasks
+   */
+  async attachTasksToLecture(lectureId: number, taskIds: number[]): Promise<{ message: string; attached_task_ids: number[] }> {
+    try {
+      const response = await apiClient.post(`/lectures/${lectureId}/tasks/attach/`, {
+        task_ids: taskIds
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to attach tasks to lecture:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Create a lecture and optionally attach tasks
+   * Enhanced version that supports task-based lecture creation
+   */
+  async createLectureWithTasks(
+    data: CreateLectureRequest,
+    taskIds?: number[]
+  ): Promise<Lecture> {
+    // First create the lecture
+    const lecture = await this.createLecture(data);
+
+    // Then attach tasks if provided
+    if (taskIds && taskIds.length > 0) {
+      await this.attachTasksToLecture(lecture.id, taskIds);
+    }
+
+    return lecture;
   },
 };

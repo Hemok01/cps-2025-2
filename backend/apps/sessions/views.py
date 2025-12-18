@@ -12,7 +12,7 @@ from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 
 from apps.lectures.models import Lecture
-from apps.tasks.models import Subtask
+from apps.tasks.models import Task, Subtask
 from .models import LectureSession, SessionParticipant, SessionStepControl
 from .serializers import (
     LectureSessionSerializer,
@@ -355,7 +355,12 @@ class SessionStartView(APIView):
                 'order_index': first_subtask.order_index,
                 'target_action': first_subtask.target_action,
                 'guide_text': first_subtask.guide_text,
-                'voice_guide_text': first_subtask.voice_guide_text
+                'voice_guide_text': first_subtask.voice_guide_text,
+                # UI 매칭용 필드 추가
+                'view_id': first_subtask.view_id or '',
+                'text': first_subtask.text or '',
+                'content_description': first_subtask.content_description or '',
+                'target_package': first_subtask.target_package or '',
             }
         )
 
@@ -431,7 +436,12 @@ class SessionNextStepView(APIView):
                 'order_index': next_subtask.order_index,
                 'target_action': next_subtask.target_action,
                 'guide_text': next_subtask.guide_text,
-                'voice_guide_text': next_subtask.voice_guide_text
+                'voice_guide_text': next_subtask.voice_guide_text,
+                # UI 매칭용 필드 추가
+                'view_id': next_subtask.view_id or '',
+                'text': next_subtask.text or '',
+                'content_description': next_subtask.content_description or '',
+                'target_package': next_subtask.target_package or '',
             }
         )
 
@@ -743,14 +753,22 @@ class AnonymousSessionJoinView(APIView):
                 participant.current_subtask = session.current_subtask
             participant.save()
 
-        # 현재 단계 정보
+        # 현재 단계 정보 (UI 매칭 필드 포함)
         current_subtask_data = None
         if session.current_subtask:
+            subtask = session.current_subtask
             current_subtask_data = {
-                'id': session.current_subtask.id,
-                'title': session.current_subtask.title,
-                'description': session.current_subtask.description,
-                'order_index': session.current_subtask.order_index
+                'id': subtask.id,
+                'title': subtask.title,
+                'description': subtask.description,
+                'order_index': subtask.order_index,
+                'target_action': subtask.target_action,
+                'guide_text': subtask.guide_text,
+                # UI 매칭용 필드 (android-student 앱에서 진행도 추적에 사용)
+                'view_id': subtask.view_id or '',
+                'text': subtask.text or '',
+                'content_description': subtask.content_description or '',
+                'target_package': subtask.target_package or '',
             }
 
         # 전체 서브태스크 목록 (진행도 표시용)
@@ -1003,11 +1021,55 @@ class ReportCompletionView(APIView):
                 participant.save()
                 logger.info(f"Step completion removed: device={device_id}, subtask={subtask_id}")
 
+        # 다음 단계 찾기 (학생 앱에서 자동 진행용)
+        next_subtask_data = None
+        if is_completed and session.lecture:
+            # 현재 단계의 task와 order_index 확인
+            current_task = subtask.task
+            current_order = subtask.order_index
+
+            # 같은 Task 내에서 다음 단계 찾기
+            next_subtask = Subtask.objects.filter(
+                task=current_task,
+                order_index__gt=current_order
+            ).order_by('order_index').first()
+
+            # 같은 Task에 없으면, 다음 Task의 첫 번째 단계 찾기
+            if not next_subtask:
+                from apps.tasks.models import Task
+                next_task = Task.objects.filter(
+                    lecture=session.lecture,
+                    order_index__gt=current_task.order_index
+                ).order_by('order_index').first()
+
+                if next_task:
+                    next_subtask = next_task.subtasks.order_by('order_index').first()
+
+            if next_subtask:
+                next_subtask_data = {
+                    'id': next_subtask.id,
+                    'title': next_subtask.title,
+                    'description': next_subtask.description,
+                    'order_index': next_subtask.order_index,
+                    'target_action': next_subtask.target_action,
+                    'guide_text': next_subtask.guide_text,
+                    # UI 매칭용 필드
+                    'view_id': next_subtask.view_id or '',
+                    'text': next_subtask.text or '',
+                    'content_description': next_subtask.content_description or '',
+                    'target_package': next_subtask.target_package or '',
+                }
+                # 참가자의 현재 단계 업데이트
+                participant.current_subtask = next_subtask
+                participant.save()
+                logger.info(f"Auto-advanced to next step: device={device_id}, next_subtask={next_subtask.id}")
+
         return Response({
             'success': True,
             'message': '단계 완료 상태가 업데이트되었습니다.',
             'completed_subtasks': participant.completed_subtasks,
-            'last_completed_at': participant.last_completed_at.isoformat() if participant.last_completed_at else None
+            'last_completed_at': participant.last_completed_at.isoformat() if participant.last_completed_at else None,
+            'next_subtask': next_subtask_data  # 다음 단계 정보 (없으면 null = 모든 단계 완료)
         })
 
 
@@ -1056,4 +1118,199 @@ class SessionCompletionStatusView(APIView):
             'total_participants': participants.count(),
             'participants': completion_data,
             'subtask_completion_stats': subtask_stats
+        })
+
+
+class SessionSummaryView(APIView):
+    """
+    세션 종료 후 요약 정보 조회 (강사용)
+    GET /api/sessions/{session_id}/summary/
+
+    수업 종료 후 강사가 빠르게 확인할 수 있는 요약 정보를 제공합니다.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, session_id):
+        from apps.help.models import HelpRequest
+        from apps.tasks.models import Subtask
+        from collections import Counter
+        from django.db.models import Count
+
+        session = get_object_or_404(
+            LectureSession.objects.select_related('lecture', 'instructor'),
+            pk=session_id
+        )
+
+        # 강사 권한 확인
+        if session.instructor != request.user:
+            return Response(
+                {'error': '강사만 세션 요약을 조회할 수 있습니다.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # 참가자 정보
+        participants = session.participants.all()
+        total_participants = participants.count()
+
+        # 완료율 계산
+        completed_participants = participants.filter(status='COMPLETED').count()
+        completion_rate = (completed_participants / total_participants * 100) if total_participants > 0 else 0
+
+        # 전체 단계 수
+        total_subtasks = 0
+        if session.lecture:
+            total_subtasks = Subtask.objects.filter(
+                task__lecture=session.lecture
+            ).count()
+
+        # 참가자별 진행률 계산
+        participant_progress = []
+        all_completed_subtasks = []
+
+        for p in participants:
+            completed_count = len(p.completed_subtasks or [])
+            all_completed_subtasks.extend(p.completed_subtasks or [])
+
+            progress_rate = (completed_count / total_subtasks * 100) if total_subtasks > 0 else 0
+
+            participant_progress.append({
+                'id': p.id,
+                'name': p.display_name or p.participant_name,
+                'status': p.status,
+                'completedCount': completed_count,
+                'totalSteps': total_subtasks,
+                'progressRate': round(progress_rate, 1),
+                'joinedAt': p.joined_at.isoformat() if p.joined_at else None,
+                'completedAt': p.completed_at.isoformat() if p.completed_at else None,
+            })
+
+        # 평균 진행률
+        avg_progress = sum(p['progressRate'] for p in participant_progress) / total_participants if total_participants > 0 else 0
+
+        # 도움 요청 통계
+        help_requests = HelpRequest.objects.filter(session=session)
+        total_help_requests = help_requests.count()
+        resolved_help_requests = help_requests.filter(status='RESOLVED').count()
+
+        # 어려운 단계 분석 (도움 요청이 많은 단계)
+        help_by_subtask = help_requests.values('subtask_id', 'subtask__title').annotate(
+            count=Count('id')
+        ).order_by('-count')[:5]
+
+        difficult_steps = [
+            {
+                'subtaskId': item['subtask_id'],
+                'subtaskName': item['subtask__title'],
+                'helpRequestCount': item['count'],
+            }
+            for item in help_by_subtask if item['subtask_id']
+        ]
+
+        # 단계별 완료 통계
+        subtask_completion_stats = dict(Counter(all_completed_subtasks))
+
+        # 세션 시간 계산
+        duration_seconds = 0
+        if session.started_at and session.ended_at:
+            duration_seconds = int((session.ended_at - session.started_at).total_seconds())
+        elif session.started_at:
+            duration_seconds = int((timezone.now() - session.started_at).total_seconds())
+
+        return Response({
+            'sessionId': session.id,
+            'sessionTitle': session.title,
+            'sessionCode': session.session_code,
+            'lectureId': session.lecture.id if session.lecture else None,
+            'lectureName': session.lecture.title if session.lecture else None,
+            'status': session.status,
+
+            # 시간 정보
+            'startedAt': session.started_at.isoformat() if session.started_at else None,
+            'endedAt': session.ended_at.isoformat() if session.ended_at else None,
+            'durationSeconds': duration_seconds,
+
+            # 참가자 통계
+            'totalParticipants': total_participants,
+            'completedParticipants': completed_participants,
+            'completionRate': round(completion_rate, 1),
+            'avgProgress': round(avg_progress, 1),
+
+            # 단계 정보
+            'totalSteps': total_subtasks,
+            'subtaskCompletionStats': subtask_completion_stats,
+
+            # 도움 요청 통계
+            'totalHelpRequests': total_help_requests,
+            'resolvedHelpRequests': resolved_help_requests,
+            'helpResolutionRate': round(resolved_help_requests / total_help_requests * 100, 1) if total_help_requests > 0 else 100,
+
+            # 어려운 단계
+            'difficultSteps': difficult_steps,
+
+            # 참가자 상세
+            'participants': participant_progress,
+        })
+
+
+class SessionSubtasksView(APIView):
+    """
+    세션의 모든 단계(Subtask) 목록 조회
+    GET /api/sessions/{session_id}/subtasks/
+
+    Returns:
+        - session_id: 세션 ID
+        - current_subtask_id: 현재 진행 중인 단계 ID
+        - current_subtask_index: 현재 단계 인덱스 (0-based)
+        - total_subtasks: 전체 단계 수
+        - subtasks: 단계 목록
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, session_id):
+        session = get_object_or_404(LectureSession, pk=session_id)
+
+        subtasks = []
+        current_subtask_index = 0
+
+        if session.lecture:
+            # 강의에 연결된 모든 Task와 Subtask 조회
+            tasks = Task.objects.filter(lecture=session.lecture).prefetch_related('subtasks').order_by('id')
+
+            global_index = 0
+            for task in tasks:
+                for subtask in task.subtasks.all().order_by('order_index'):
+                    subtask_data = {
+                        'id': subtask.id,
+                        'title': subtask.title,
+                        'description': subtask.description,
+                        'orderIndex': global_index,  # camelCase for frontend
+                        'order_index': global_index,  # snake_case for consistency
+                        'targetAction': subtask.target_action,
+                        'guideText': subtask.guide_text,
+                        'taskId': task.id,
+                        'taskTitle': task.title,
+                    }
+                    subtasks.append(subtask_data)
+
+                    # 현재 단계 인덱스 찾기
+                    if session.current_subtask and subtask.id == session.current_subtask.id:
+                        current_subtask_index = global_index
+
+                    global_index += 1
+
+        current_subtask_data = None
+        if session.current_subtask:
+            current_subtask_data = {
+                'id': session.current_subtask.id,
+                'title': session.current_subtask.title,
+                'orderIndex': current_subtask_index,
+            }
+
+        return Response({
+            'session_id': session_id,
+            'current_subtask': current_subtask_data,
+            'current_subtask_id': session.current_subtask.id if session.current_subtask else None,
+            'current_subtask_index': current_subtask_index,
+            'total_subtasks': len(subtasks),
+            'subtasks': subtasks,
         })

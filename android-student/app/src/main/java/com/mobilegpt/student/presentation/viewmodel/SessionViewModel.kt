@@ -145,6 +145,11 @@ class SessionViewModel @Inject constructor(
                     it.order?.let { order -> _currentStep.value = order }
                     it.orderIndex?.let { orderIndex -> _currentStep.value = orderIndex }
                     Log.d(TAG, "joinSession: Initial subtask - id=${it.id}, title=${it.title}")
+
+                    // ★ SharedPreferences에 SubtaskDetail 저장 (AccessibilityService에서 사용)
+                    sessionPreferences.saveCurrentSubtaskDetail(it)
+                    Log.d(TAG, "joinSession: Saved subtask detail to SharedPreferences - " +
+                            "viewId=${it.viewId}, text=${it.text}, package=${it.effectivePackage}")
                 }
 
                 // WebSocket 연결
@@ -297,6 +302,36 @@ class SessionViewModel @Inject constructor(
         FloatingOverlayService.stop(context)
         _isOverlayShowing.value = false
         Log.d(TAG, "Overlay stopped")
+    }
+
+    /**
+     * SharedPreferences에서 진행도 새로고침
+     *
+     * AccessibilityService가 단계 완료를 감지하면 SharedPreferences에 다음 단계 정보가 저장됨.
+     * 이 메서드를 호출하면 저장된 정보로 UI 상태를 업데이트함.
+     */
+    fun refreshProgressFromPreferences() {
+        val currentSubtask = sessionPreferences.getCurrentSubtaskDetail()
+
+        if (currentSubtask != null) {
+            val newStep = (currentSubtask.orderIndex ?: (_currentStep.value - 1)) + 1  // 0-based -> 1-based
+
+            // 상태가 변경된 경우에만 업데이트
+            if (newStep != _currentStep.value || currentSubtask.title != _currentStepTitle.value) {
+                _currentStep.value = newStep
+                _currentStepTitle.value = currentSubtask.title
+                _currentSubtaskId.value = currentSubtask.id
+
+                Log.d(TAG, "refreshProgressFromPreferences: Updated to step=$newStep, title=${currentSubtask.title}, id=${currentSubtask.id}")
+
+                // 오버레이도 업데이트
+                updateOverlayProgress()
+
+                addMessage("📱 단계 업데이트: ${currentSubtask.title}")
+            }
+        } else {
+            Log.d(TAG, "refreshProgressFromPreferences: No current subtask in preferences")
+        }
     }
 
     /**
@@ -464,7 +499,15 @@ class SessionViewModel @Inject constructor(
      */
     private fun handleWebSocketMessage(message: com.mobilegpt.student.domain.model.SessionMessage) {
         Log.d(TAG, "handleWebSocketMessage: type=${message.type}, data=${message.data}")
-        when (message.type) {
+
+        // ★ null 체크: 메시지 타입이 null이면 무시
+        val messageType = message.type
+        if (messageType == null) {
+            Log.w(TAG, "handleWebSocketMessage: Ignoring message with null type")
+            return
+        }
+
+        when (messageType) {
             MessageType.JOIN_CONFIRMED -> {
                 addMessage("✅ 세션 참가 확인")
             }
@@ -483,10 +526,32 @@ class SessionViewModel @Inject constructor(
                 (stepData?.get("order") as? Number)?.toInt()?.let {
                     _currentStep.value = it
                 }
+                (stepData?.get("order_index") as? Number)?.toInt()?.let {
+                    _currentStep.value = it + 1  // order_index는 0-based
+                }
                 // subtask id 업데이트
                 subtaskId?.let { _currentSubtaskId.value = it }
                 // 단계 제목 업데이트
                 stepTitle?.let { _currentStepTitle.value = it }
+
+                // ★ SubtaskDetail 생성 및 SharedPreferences에 저장 (AccessibilityService에서 사용)
+                if (subtaskId != null && stepTitle != null) {
+                    val subtaskDetail = com.mobilegpt.student.domain.model.SubtaskDetail(
+                        id = subtaskId,
+                        title = stepTitle,
+                        orderIndex = (stepData?.get("order_index") as? Number)?.toInt(),
+                        targetAction = stepData?.get("target_action") as? String,
+                        guideText = stepData?.get("guide_text") as? String,
+                        viewId = stepData?.get("view_id") as? String,
+                        text = stepData?.get("text") as? String,
+                        contentDescription = stepData?.get("content_description") as? String,
+                        targetPackage = stepData?.get("target_package") as? String
+                    )
+                    sessionPreferences.saveCurrentSubtaskDetail(subtaskDetail)
+                    Log.d(TAG, "STEP_CHANGED: Saved subtask detail - " +
+                            "id=$subtaskId, viewId=${subtaskDetail.viewId}, " +
+                            "text=${subtaskDetail.text}, package=${subtaskDetail.targetPackage}")
+                }
 
                 updateOverlayProgress()
             }

@@ -1,8 +1,8 @@
 """
-Session URLs
+Session URLs (실시간 세션 API)
+- 녹화(Recording) API는 /api/recordings/ 로 분리됨 (recording_urls.py 참조)
 """
-from django.urls import path, include
-from rest_framework.routers import DefaultRouter
+from django.urls import path
 from .views import (
     SessionByCodeView,
     SessionJoinView,
@@ -20,8 +20,9 @@ from .views import (
     SessionSwitchLectureView,
     ReportCompletionView,
     SessionCompletionStatusView,
+    SessionSummaryView,
+    SessionSubtasksView,
 )
-from .recordings import RecordingSessionViewSet
 from .screenshot_views import (
     ScreenshotUploadView,
     StudentScreenshotListView,
@@ -31,14 +32,7 @@ from .screenshot_views import (
 
 app_name = 'sessions'
 
-# Router for Recording ViewSet
-router = DefaultRouter()
-router.register(r'recordings', RecordingSessionViewSet, basename='recording')
-
 urlpatterns = [
-    # Recording endpoints (router) - Must come before <str:session_code> pattern!
-    path('', include(router.urls)),
-
     # Anonymous join (학생 앱용) - Must come before <str:session_code> pattern!
     path('join/', AnonymousSessionJoinView.as_view(), name='anonymous-session-join'),
 
@@ -63,6 +57,12 @@ urlpatterns = [
     # Step completion endpoints (단계 완료 보고)
     path('<int:session_id>/report-completion/', ReportCompletionView.as_view(), name='session-report-completion'),
     path('<int:session_id>/completion-status/', SessionCompletionStatusView.as_view(), name='session-completion-status'),
+
+    # Session summary (세션 요약)
+    path('<int:session_id>/summary/', SessionSummaryView.as_view(), name='session-summary'),
+
+    # Session subtasks (세션 단계 목록)
+    path('<int:session_id>/subtasks/', SessionSubtasksView.as_view(), name='session-subtasks'),
 
     # Screenshot endpoints (학생 화면 스크린샷)
     path('<int:session_id>/screenshots/', StudentScreenshotListView.as_view(), name='session-screenshots'),

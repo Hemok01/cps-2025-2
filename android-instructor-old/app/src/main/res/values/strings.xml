@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MobileGPT 강의자</string>
+
+    <!-- 녹화 화면 -->
+    <string name="recording_title">녹화</string>
+    <string name="start_recording">녹화 시작</string>
+    <string name="stop_recording">녹화 중지</string>
+    <string name="recording_in_progress">녹화 중...</string>
+
+    <!-- 분석 화면 -->
+    <string name="analysis_title">분석</string>
+    <string name="analyzing">분석 중...</string>
+    <string name="analysis_complete">분석 완료</string>
+    <string name="start_analysis">분석 시작</string>
+
+    <!-- 강의 생성 -->
+    <string name="create_lecture">강의 생성</string>
+    <string name="lecture_title">강의 제목</string>
+    <string name="lecture_description">강의 설명</string>
+
+    <!-- 로그인 -->
+    <string name="login">로그인</string>
+    <string name="email">이메일</string>
+    <string name="password">비밀번호</string>
+
+    <!-- 공통 -->
+    <string name="loading">로딩 중...</string>
+    <string name="error">오류</string>
+    <string name="retry">다시 시도</string>
+    <string name="cancel">취소</string>
+    <string name="confirm">확인</string>
+    <string name="save">저장</string>
+    <string name="delete">삭제</string>
+    <string name="edit">수정</string>
+
+    <!-- 접근성 서비스 -->
+    <string name="accessibility_service_description">녹화를 위해 화면 이벤트를 수집합니다.</string>
+</resources>

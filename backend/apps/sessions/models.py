@@ -4,7 +4,7 @@ Lecture Session Models (실시간 강의방)
 from django.db import models
 from django.conf import settings
 from apps.lectures.models import Lecture
-from apps.tasks.models import Subtask
+from apps.tasks.models import Task, Subtask
 import random
 import string
 
@@ -297,9 +297,8 @@ class RecordingSession(models.Model):
     STATUS_CHOICES = [
         ('RECORDING', '녹화 중'),
         ('COMPLETED', '완료'),
-        ('PROCESSING', 'GPT 분석 중'),
+        ('PROCESSING', '처리 중'),
         ('ANALYZED', '분석 완료'),
-        ('CONVERTED', '강의 변환됨'),
         ('FAILED', '실패'),
     ]
 
@@ -328,22 +327,43 @@ class RecordingSession(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='생성일시')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='수정일시')
 
-    # 연결된 강의 (녹화로부터 강의 생성 후)
+    # 변환된 과제 (녹화 → 과제 변환 후)
+    task = models.ForeignKey(
+        Task,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='recordings',
+        verbose_name='변환된 과제'
+    )
+
+    # 연결된 강의 (과제가 속한 강의, 선택적)
     lecture = models.ForeignKey(
         Lecture,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='recordings',
-        verbose_name='생성된 강의'
+        related_name='recording_sessions',
+        verbose_name='연결된 강의'
     )
 
-    # GPT 분석 오류 메시지
+    # AI 분석 관련 필드
+    analysis_result = models.JSONField(
+        null=True,
+        blank=True,
+        verbose_name='분석 결과',
+        help_text='GPT 분석으로 생성된 단계 목록 (JSON Array)'
+    )
     analysis_error = models.TextField(
         blank=True,
         default='',
-        verbose_name='분석 오류',
-        help_text='GPT 분석 실패 시 오류 메시지'
+        verbose_name='분석 오류 메시지',
+        help_text='분석 실패 시 오류 메시지 저장'
+    )
+    analyzed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='분석 완료 시각'
     )
 
     class Meta:
@@ -354,6 +374,7 @@ class RecordingSession(models.Model):
             models.Index(fields=['instructor']),
             models.Index(fields=['status']),
             models.Index(fields=['created_at']),
+            models.Index(fields=['task']),
             models.Index(fields=['lecture']),
         ]
         ordering = ['-created_at']

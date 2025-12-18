@@ -7,7 +7,8 @@ import {
   StudentProgress,
   HelpRequest,
   LectureStatistics,
-  SessionStatus
+  SessionStatus,
+  SessionSummary
 } from './types';
 import apiClient from './api-client';
 
@@ -566,33 +567,108 @@ export const apiService = {
     try {
       const response = await apiClient.get(`/dashboard/statistics/lecture/${lectureId}/`);
       const stats = response.data;
+
+      // difficult_steps 변환
+      const difficultSteps = (stats.difficult_steps || []).map((step: any) => ({
+        subtaskName: step.subtask_name,
+        helpRequestCount: step.help_request_count,
+        avgTimeSpent: step.avg_time_spent,
+        studentCount: step.student_count,
+      }));
+
       return {
-        lectureId,
-        lectureName: stats.lecture_name || stats.lectureName || 'Unknown',
+        lectureId: stats.lecture_id || lectureId,
+        lectureName: stats.lecture_name || 'Unknown',
         totalStudents: stats.total_students || 0,
-        activeStudents: stats.active_students || 0,
-        completionRate: stats.completion_rate || 0,
+        totalHelpRequests: stats.total_help_requests || 0,
         averageProgress: stats.average_progress || 0,
-        helpRequestsCount: stats.total_help_requests || stats.help_requests_count || 0,
-        sessionCount: stats.session_count || 0,
-        commonIssues: stats.common_difficulties || [],
+        completionRate: stats.completion_rate || 0,
+        difficultSteps,
         lastUpdated: stats.last_updated || new Date().toISOString(),
       };
     } catch (error) {
       console.error('Failed to fetch lecture statistics:', error);
-      // Return fallback data
+      throw error;
+    }
+  },
+
+  // 단계별 분석 API
+  async getStepAnalysis(lectureId: number): Promise<import('./types').StepAnalysisData> {
+    try {
+      const response = await apiClient.get(`/dashboard/statistics/lecture/${lectureId}/step-analysis/`);
+      const data = response.data;
+
       return {
-        lectureId,
-        lectureName: 'Unknown',
-        totalStudents: 0,
-        activeStudents: 0,
-        completionRate: 0,
-        averageProgress: 0,
-        helpRequestsCount: 0,
-        sessionCount: 0,
-        commonIssues: [],
-        lastUpdated: new Date().toISOString(),
+        lectureId: data.lecture_id,
+        lectureName: data.lecture_name,
+        totalSubtasks: data.total_subtasks,
+        stepAnalysis: data.step_analysis.map((item: any) => ({
+          subtaskId: item.subtask_id,
+          subtaskName: item.subtask_name,
+          taskName: item.task_name,
+          orderIndex: item.order_index,
+          avgTimeSpent: item.avg_time_spent,
+          delayRate: item.delay_rate,
+          helpRequestCount: item.help_request_count,
+          studentCount: item.student_count,
+          completionRate: item.completion_rate,
+          bottleneckScore: item.bottleneck_score,
+        })),
+        summary: {
+          mostDelayedStep: data.summary.most_delayed_step,
+          mostHelpRequestedStep: data.summary.most_help_requested_step,
+          avgOverallDelayRate: data.summary.avg_overall_delay_rate,
+        },
+        lastUpdated: data.last_updated,
       };
+    } catch (error) {
+      console.error('Failed to fetch step analysis:', error);
+      throw error;
+    }
+  },
+
+  // 세션 간 추이 비교 API
+  async getSessionTrends(lectureId: number): Promise<import('./types').SessionComparisonData> {
+    try {
+      const response = await apiClient.get(`/dashboard/statistics/lecture/${lectureId}/session-trends/`);
+      const data = response.data;
+
+      return {
+        lectureId: data.lecture_id,
+        lectureName: data.lecture_name,
+        sessions: data.sessions.map((s: any) => ({
+          sessionId: s.session_id,
+          sessionTitle: s.session_title,
+          sessionDate: s.session_date,
+          startedAt: s.started_at,
+          endedAt: s.ended_at,
+          participantCount: s.participant_count,
+          completionRate: s.completion_rate,
+          avgCompletionTime: s.avg_completion_time,
+          totalHelpRequests: s.total_help_requests,
+          helpRequestRate: s.help_request_rate,
+        })),
+        trendSummary: {
+          completionRateTrend: data.trend_summary.completion_rate_trend,
+          helpRequestTrend: data.trend_summary.help_request_trend,
+          avgCompletionTimeTrend: data.trend_summary.avg_completion_time_trend,
+        },
+        lastUpdated: data.last_updated,
+      };
+    } catch (error) {
+      console.error('Failed to fetch session trends:', error);
+      throw error;
+    }
+  },
+
+  // Session Summary (세션 요약)
+  async getSessionSummary(sessionId: number): Promise<SessionSummary> {
+    try {
+      const response = await apiClient.get(`/sessions/${sessionId}/summary/`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to fetch session summary:', error);
+      throw error;
     }
   },
 };

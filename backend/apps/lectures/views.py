@@ -16,8 +16,18 @@ from .serializers import (
 
 class LectureListCreateView(generics.ListCreateAPIView):
     """List all lectures or create new lecture"""
-    queryset = Lecture.objects.filter(is_active=True).select_related('instructor')
     permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        """
+        강의자: 본인이 생성한 모든 강의 (활성/비활성 모두)
+        학생: 활성화된 강의만
+        """
+        user = self.request.user
+        if user.role == 'INSTRUCTOR':
+            return Lecture.objects.filter(instructor=user).select_related('instructor')
+        else:
+            return Lecture.objects.filter(is_active=True).select_related('instructor')
 
     def get_serializer_class(self):
         if self.request.method == 'POST':
